@@ -237,7 +237,7 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 </style>
 
 </head>
-<body data-app-version="firebase-final-20260909-1">
+<body data-app-version="firebase-standard-v1">
 
 
 
@@ -256,7 +256,7 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
     <header class="topbar">
       <div class="page-title"><button class="mobile-toggle" id="mobileToggle">☰</button><div><h1 id="topTitle">Pedidos · Urbano</h1></div></div>
       <div class="top-status">
-      <span class="storage-pill sync-pill" id="firebaseSyncPill"><span class="dot"></span><span id="firebaseSyncText">Datos locales</span></span>
+      <span class="storage-pill sync-pill" id="firebaseSyncPill" title="Firebase estándar v1"><span class="dot"></span><span id="firebaseSyncText">Datos locales</span></span>
       <small id="clock"></small>
     </div>
     </header>
@@ -679,10 +679,10 @@ refreshAll();
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
   getAuth, setPersistence, browserLocalPersistence,
-  signInAnonymously, onAuthStateChanged, getIdToken
+  signInAnonymously, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  initializeFirestore, doc, setDoc, getDoc, collection, getDocs,
+  getFirestore, doc, setDoc, getDoc, collection, getDocs,
   writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
@@ -697,9 +697,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = initializeFirestore(app,{
-  experimentalForceLongPolling:true
-});
+const db = getFirestore(app);
 const BUCKET_COUNT = 32;
 const loadedMonths = new Set();
 let availableMonths = [];
@@ -796,7 +794,7 @@ async function loadMonth(month){
   setSync('ok','Firebase sincronizado');
 }
 async function ensureSelection(month){
-  if(!firebaseReady){await connectFirebase().catch(()=>{});}
+  if(!currentUser)return;
   if(month){
     await loadMonth(month);
   }else{
@@ -860,25 +858,22 @@ async function migrateLocalIfNeeded(){return}
 async function initializeCloud(){
   setSync('syncing','Firebase: conectando');
 
-  if(currentUser){
-    await getIdToken(currentUser,true);
-  }
-
   await loadConfig();
   await discoverMonths();
 
   if(availableMonths.length){
     const preferred=availableMonths[0];
     await loadMonth(preferred);
+
     const f=$('fMonth'), d=$('dashMonth');
     if(f)f.value=preferred;
     if(d)d.value=preferred;
+
     window.UrbanoApp?.renderOrders?.();
     window.UrbanoApp?.renderDashboard?.();
+
     setSync('ok',`Firebase sincronizado · ${availableMonths.length} mes${availableMonths.length===1?'':'es'}`);
   }else{
-    // Cloud connected but currently has no months. Keep any local data visible,
-    // but do NOT upload it automatically.
     setSync('ok','Firebase sincronizado · sin datos');
   }
 }
@@ -899,76 +894,60 @@ await setPersistence(auth,browserLocalPersistence).catch(()=>{});
 
 
 
-let firebaseReady=false;
-let firebaseConnecting=false;
-let firebaseRetryTimer=null;
 
-function setFirebaseDetail(error){
-  const pill=$('firebaseSyncPill');
-  if(!pill)return;
+let cloudLoaded=false;
+let authAttempt=false;
+
+function showFirebaseError(error){
+  console.error('Firebase:',error);
   const code=String(error?.code||'');
-  const msg=String(error?.message||'');
-  pill.title=[code,msg].filter(Boolean).join(' · ');
-}
+  const pill=$('firebaseSyncPill');
+  if(pill)pill.title=[code,String(error?.message||'')].filter(Boolean).join(' · ');
 
-function scheduleFirebaseRetry(delay=5000){
-  clearTimeout(firebaseRetryTimer);
-  firebaseRetryTimer=setTimeout(()=>connectFirebase(),delay);
-}
-
-async function connectFirebase(){
-  if(firebaseReady||firebaseConnecting)return;
-  firebaseConnecting=true;
-  setSync('syncing','Firebase: conectando');
-
-  try{
-    let user=auth.currentUser;
-
-    if(!user){
-      const cred=await signInAnonymously(auth);
-      user=cred.user;
-    }
-
-    currentUser=user;
-    await getIdToken(user,true);
-    await initializeCloud();
-
-    firebaseReady=true;
-    clearTimeout(firebaseRetryTimer);
-    const pill=$('firebaseSyncPill');
-    if(pill)pill.title='Conexión activa con Firestore';
-  }catch(error){
-    console.error('Firebase connection error:',error);
-    setFirebaseDetail(error);
-    firebaseReady=false;
-
-    const code=String(error?.code||'');
-    if(code.includes('permission-denied')){
-      setSync('error','Firebase: sin permisos');
-    }else if(code.includes('auth/operation-not-allowed')){
-      setSync('error','Firebase: anónimo desactivado');
-    }else if(code.includes('auth/too-many-requests')){
-      setSync('syncing','Firebase: esperando, reintentando');
-    }else{
-      setSync('syncing','Firebase: reconectando');
-    }
-
-    scheduleFirebaseRetry(5000);
-  }finally{
-    firebaseConnecting=false;
+  if(code.includes('permission-denied')){
+    setSync('error','Firebase: sin permisos');
+  }else if(code.includes('operation-not-allowed')){
+    setSync('error','Firebase: anónimo desactivado');
+  }else if(code.includes('network')){
+    setSync('error','Firebase: sin conexión');
+  }else{
+    setSync('error','Firebase: error de conexión');
   }
 }
 
-onAuthStateChanged(auth,user=>{
-  if(user)currentUser=user;
-  if(!firebaseReady)connectFirebase();
+onAuthStateChanged(auth,async user=>{
+  if(!user){
+    if(authAttempt)return;
+    authAttempt=true;
+    setSync('syncing','Firebase: autenticando');
+    try{
+      await signInAnonymously(auth);
+    }catch(error){
+      authAttempt=false;
+      showFirebaseError(error);
+    }
+    return;
+  }
+
+  currentUser=user;
+  authAttempt=false;
+
+  if(cloudLoaded)return;
+
+  try{
+    await initializeCloud();
+    cloudLoaded=true;
+  }catch(error){
+    cloudLoaded=false;
+    showFirebaseError(error);
+  }
 });
 
-window.addEventListener('online',()=>{firebaseReady=false;connectFirebase()});
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&!firebaseReady)connectFirebase();
+window.addEventListener('online',()=>{
+  if(currentUser&&!cloudLoaded){
+    initializeCloud().then(()=>{cloudLoaded=true}).catch(showFirebaseError);
+  }
 });
-setTimeout(()=>connectFirebase(),300);
 
 </script>
 
