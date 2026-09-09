@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="es">
 <head>
+
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Gestión Urbano · Oriflame</title>
@@ -232,7 +237,7 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 </style>
 
 </head>
-<body data-app-version="firebase-v3">
+<body data-app-version="firebase-final-20260909-1">
 
 
 
@@ -674,10 +679,10 @@ refreshAll();
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
   getAuth, setPersistence, browserLocalPersistence,
-  signInAnonymously, onAuthStateChanged
+  signInAnonymously, onAuthStateChanged, getIdToken
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, collection, getDocs,
+  initializeFirestore, doc, setDoc, getDoc, collection, getDocs,
   writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
@@ -692,7 +697,9 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = initializeFirestore(app,{
+  experimentalForceLongPolling:true
+});
 const BUCKET_COUNT = 32;
 const loadedMonths = new Set();
 let availableMonths = [];
@@ -707,6 +714,21 @@ const hashGuide = value => {
   return Math.abs(h>>>0);
 };
 const bucketId = guide => 'b'+String(hashGuide(guide)%BUCKET_COUNT).padStart(2,'0');
+
+const cleanForFirestore=value=>{
+  if(value===undefined)return null;
+  if(value===null)return null;
+  if(Array.isArray(value))return value.map(cleanForFirestore);
+  if(typeof value==='object'){
+    const out={};
+    for(const [k,v] of Object.entries(value)){
+      if(v!==undefined)out[k]=cleanForFirestore(v);
+    }
+    return out;
+  }
+  return value;
+};
+
 
 function setSync(status,text){
   const pill=$('firebaseSyncPill'), label=$('firebaseSyncText');
@@ -736,11 +758,11 @@ async function saveConfig(){
   const localMonths=window.UrbanoApp?.getLoadedMonths?.()||[];
   const months=[...new Set([...availableMonths,...localMonths])].sort().reverse();
   await setDoc(doc(db,'urbano_meta','config'),{
-    claims:cfg.claims||[],
-    holidays:cfg.holidays||[],
+    claims:cleanForFirestore(cfg.claims||[]),
+    holidays:cleanForFirestore(cfg.holidays||[]),
     pupDays:Number(cfg.pupDays||0),
-    closedMonths:cfg.closedMonths||[],
-    lastLoads:cfg.lastLoads||{},
+    closedMonths:cleanForFirestore(cfg.closedMonths||[]),
+    lastLoads:cleanForFirestore(cfg.lastLoads||{}),
     months,
     updatedAt:serverTimestamp(),
     updatedBy:currentUser.email||currentUser.uid
@@ -796,7 +818,7 @@ async function syncMonth(month){
   const batch=writeBatch(db);
   for(const [id,orders] of buckets){
     batch.set(doc(db,'urbano_months',month,'buckets',id),{
-      orders,
+      orders:cleanForFirestore(orders),
       updatedAt:serverTimestamp(),
       updatedBy:currentUser.email||currentUser.uid
     });
@@ -828,26 +850,23 @@ async function saveOrder(order){
   const orders=monthOrders(month).filter(o=>bucketId(o.guide)===id);
   setSync('syncing','Firebase: guardando cambio');
   await setDoc(doc(db,'urbano_months',month,'buckets',id),{
-    orders,
+    orders:cleanForFirestore(orders),
     updatedAt:serverTimestamp(),
     updatedBy:currentUser.email||currentUser.uid
   });
   setSync('ok','Firebase sincronizado');
 }
-async function migrateLocalIfNeeded(){
-  if(availableMonths.length)return;
-  const localMonths=window.UrbanoApp?.getLoadedMonths?.()||[];
-  if(!localMonths.length){
-    await saveConfig();
-    return;
-  }
-  await syncMonths(localMonths);
-}
+async function migrateLocalIfNeeded(){return}
 async function initializeCloud(){
   setSync('syncing','Firebase: conectando');
+
+  if(currentUser){
+    await getIdToken(currentUser,true);
+  }
+
   await loadConfig();
   await discoverMonths();
-  await migrateLocalIfNeeded();
+
   if(availableMonths.length){
     const preferred=availableMonths[0];
     await loadMonth(preferred);
@@ -856,8 +875,12 @@ async function initializeCloud(){
     if(d)d.value=preferred;
     window.UrbanoApp?.renderOrders?.();
     window.UrbanoApp?.renderDashboard?.();
+    setSync('ok',`Firebase sincronizado · ${availableMonths.length} mes${availableMonths.length===1?'':'es'}`);
+  }else{
+    // Cloud connected but currently has no months. Keep any local data visible,
+    // but do NOT upload it automatically.
+    setSync('ok','Firebase sincronizado · sin datos');
   }
-  setSync('ok','Firebase sincronizado');
 }
 
 window.UrbanoFirebase={
@@ -875,11 +898,20 @@ await setPersistence(auth,browserLocalPersistence).catch(()=>{});
 
 
 
+
 let firebaseReady=false;
 let firebaseConnecting=false;
 let firebaseRetryTimer=null;
 
-function scheduleFirebaseRetry(delay=4000){
+function setFirebaseDetail(error){
+  const pill=$('firebaseSyncPill');
+  if(!pill)return;
+  const code=String(error?.code||'');
+  const msg=String(error?.message||'');
+  pill.title=[code,msg].filter(Boolean).join(' · ');
+}
+
+function scheduleFirebaseRetry(delay=5000){
   clearTimeout(firebaseRetryTimer);
   firebaseRetryTimer=setTimeout(()=>connectFirebase(),delay);
 }
@@ -891,49 +923,52 @@ async function connectFirebase(){
 
   try{
     let user=auth.currentUser;
+
     if(!user){
       const cred=await signInAnonymously(auth);
       user=cred.user;
     }
-    currentUser=user;
 
+    currentUser=user;
+    await getIdToken(user,true);
     await initializeCloud();
 
     firebaseReady=true;
-    setSync('ok','Firebase sincronizado');
     clearTimeout(firebaseRetryTimer);
+    const pill=$('firebaseSyncPill');
+    if(pill)pill.title='Conexión activa con Firestore';
   }catch(error){
     console.error('Firebase connection error:',error);
+    setFirebaseDetail(error);
     firebaseReady=false;
 
     const code=String(error?.code||'');
     if(code.includes('permission-denied')){
       setSync('error','Firebase: sin permisos');
-    }else if(code.includes('network')){
-      setSync('syncing','Firebase: sin red, reintentando');
+    }else if(code.includes('auth/operation-not-allowed')){
+      setSync('error','Firebase: anónimo desactivado');
+    }else if(code.includes('auth/too-many-requests')){
+      setSync('syncing','Firebase: esperando, reintentando');
     }else{
       setSync('syncing','Firebase: reconectando');
     }
-    scheduleFirebaseRetry(4000);
+
+    scheduleFirebaseRetry(5000);
   }finally{
     firebaseConnecting=false;
   }
 }
 
 onAuthStateChanged(auth,user=>{
-  if(user){
-    currentUser=user;
-    connectFirebase();
-  }else{
-    connectFirebase();
-  }
+  if(user)currentUser=user;
+  if(!firebaseReady)connectFirebase();
 });
 
-window.addEventListener('online',()=>connectFirebase());
+window.addEventListener('online',()=>{firebaseReady=false;connectFirebase()});
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&!firebaseReady)connectFirebase();
 });
-setTimeout(()=>connectFirebase(),250);
+setTimeout(()=>connectFirebase(),300);
 
 </script>
 
