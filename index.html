@@ -222,8 +222,17 @@ body.firebase-locked .app{filter:blur(1px);pointer-events:none;user-select:none}
 body.firebase-locked .app{filter:none!important;pointer-events:auto!important;user-select:auto!important}
 .user-pill,.logout-btn{display:none!important}
 </style>
+
+<style id="socio-modal-fix">
+.socio-info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.socio-info-card{border:1px solid #E2E5E9;background:#FAFAFB;border-radius:12px;padding:14px}
+.socio-info-card label{display:block;font-size:10px;font-weight:900;color:#6B7280;text-transform:uppercase;margin-bottom:6px}
+.socio-info-card strong{font-size:14px;color:#1F2937;word-break:break-word}
+@media(max-width:700px){.socio-info-grid{grid-template-columns:1fr}}
+</style>
+
 </head>
-<body>
+<body data-app-version="firebase-v2">
 
 
 
@@ -242,7 +251,7 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
     <header class="topbar">
       <div class="page-title"><button class="mobile-toggle" id="mobileToggle">☰</button><div><h1 id="topTitle">Pedidos · Urbano</h1></div></div>
       <div class="top-status">
-      <span class="storage-pill sync-pill" id="firebaseSyncPill"><span class="dot"></span><span id="firebaseSyncText">Firebase: conectando</span></span>
+      <span class="storage-pill sync-pill" id="firebaseSyncPill"><span class="dot"></span><span id="firebaseSyncText">Datos locales</span></span>
       <small id="clock"></small>
     </div>
     </header>
@@ -370,7 +379,7 @@ function filteredOrders(){const month=$('fMonth').value,date=$('fDate').value,ch
 function statusBadge(o){const d=deliveredState(o);return d==='ENTREGADO'?'<span class="badge b-delivered">✓ ENTREGADO</span>':'<span class="badge b-pending">● NO ENTREGADO</span>'}
 function channelBadge(c){return `<span class="badge ${c==='HD'?'b-red':c==='PUP'?'b-blue':'b-gray'}">${esc(c||'-')}</span>`}
 function statusClass(v){const s=normalizeStatus(v);if(s.includes('ENTREGADO'))return'st-delivered';if(s.includes('SALIO A RUTA')||s.includes('EN RUTA'))return'st-route';if(s.includes('ARRIBADO'))return'st-arrived';if(s.includes('VISITADO'))return'st-visited';if(s.includes('SOLICITUD DE SERVICIO'))return'st-service';if(s.includes('DESPACHADO'))return'st-dispatched';return'st-other'}
-function renderOrders(){addMonthsToSelect();refreshFilterOptions();const arr=filteredOrders();$('ordersBody').innerHTML=arr.map(o=>{const d=orderDays(o);const phone=o.phone||o.phone1||'-';const ref=o.reference||'-';const estado=normalizeStatus(o.status)||deliveredState(o);const stc=statusClass(estado);const hasSocio=!!(norm(o.socio)||norm(o.memberName)||norm(o.phone)||norm(o.reference));const codDistNum=Number(String(o.codDist||'').replace(/\.0$/,'').trim());const isUrbanoAgency=Number.isFinite(codDistNum)&&codDistNum>=9000&&codDistNum<=9100;const socioButton=(hasSocio&&isUrbanoAgency)?`<button class="socio-btn view-socio" data-guide="${esc(o.guide)}">Ver socio</button>`:'';const mgClass=norm(o.management)?' has-management':'';const mgTitle=norm(o.management)?`Gestión registrada: ${esc(o.management)}`:'Agregar gestión';return `<tr data-guide="${esc(o.guide)}"><td class="sticky-1"><span class="guide-code">${esc(o.guide)}</span></td><td class="sticky-2"><span class="urbano-guide-code">${esc(o.wyb||'-')}</span></td><td>${fmtDate(o.guideDate)||'-'}</td><td>${esc(o.codDist||'-')}</td><td><div class="recipient-cell"><span>${esc(o.recipient||'-')}</span>${socioButton}</div></td><td>${esc(o.barrio||'-')}</td><td>${esc(o.address||'-')}</td><td>${esc(ref)}</td><td>${esc(phone)}</td><td>${esc(o.order||'-')}</td><td>${esc(o.city||o.province||'-')}</td><td>${esc(o.weight||'-')}</td><td>${fmtDate(o.promiseDate)||'-'}</td><td>${esc(o.courier||'URBANO')}</td><td>${channelBadge(o.channel)}</td><td><span class="badge ${Number(o.visits)>=3?'b-red':Number(o.visits)>=2?'b-pending':'b-gray'}">${Number(o.visits||0)}</span></td><td><div class="status-cell"><span class="status-main ${stc}">${esc(estado)}</span></div></td><td>${fmtDate(o.deliveryDate)||'-'}</td><td><span class="days">${d===null?'-':d}</span></td><td><button class="action-mini manage${mgClass}" data-guide="${esc(o.guide)}" title="${mgTitle}" aria-label="Gestionar"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 18.5 3.5 21v-4.6A8 8 0 0 1 3 13.5v-3A6.5 6.5 0 0 1 9.5 4h5A6.5 6.5 0 0 1 21 10.5v3a6.5 6.5 0 0 1-6.5 6.5h-5A6.6 6.6 0 0 1 7 18.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10h8M8 14h5" stroke-width="1.8" stroke-linecap="round"/></svg></button></td><td><select class="claim-inline claim-select" data-guide="${esc(o.guide)}"><option value=""> </option>${state.claims.map(c=>`<option value="${esc(c)}" ${o.claim===c?'selected':''}>${esc(c)}</option>`).join('')}</select></td></tr>`}).join('');$('ordersEmpty').style.display=arr.length?'none':'block';$('visibleCount').textContent=`${arr.length} visibles · ${state.orders.length} totales`;$('sideCount').textContent=`${state.orders.length} pedidos cargados`;bindRowEvents();syncTableScrollbar()}
+function renderOrders(){addMonthsToSelect();refreshFilterOptions();const arr=filteredOrders();$('ordersBody').innerHTML=arr.map(o=>{const d=orderDays(o);const phone=o.phone||o.phone1||'-';const ref=o.reference||'-';const estado=normalizeStatus(o.status)||deliveredState(o);const stc=statusClass(estado);const codDistNum=Number(String(o.codDist||'').replace(/\.0$/,'').trim());const isUrbanoAgency=Number.isFinite(codDistNum)&&codDistNum>=9000&&codDistNum<=9100;const socioButton=isUrbanoAgency?`<button class="socio-btn view-socio" data-guide="${esc(o.guide)}">Ver socio</button>`:'';const mgClass=norm(o.management)?' has-management':'';const mgTitle=norm(o.management)?`Gestión registrada: ${esc(o.management)}`:'Agregar gestión';return `<tr data-guide="${esc(o.guide)}"><td class="sticky-1"><span class="guide-code">${esc(o.guide)}</span></td><td class="sticky-2"><span class="urbano-guide-code">${esc(o.wyb||'-')}</span></td><td>${fmtDate(o.guideDate)||'-'}</td><td>${esc(o.codDist||'-')}</td><td><div class="recipient-cell"><span>${esc(o.recipient||'-')}</span>${socioButton}</div></td><td>${esc(o.barrio||'-')}</td><td>${esc(o.address||'-')}</td><td>${esc(ref)}</td><td>${esc(phone)}</td><td>${esc(o.order||'-')}</td><td>${esc(o.city||o.province||'-')}</td><td>${esc(o.weight||'-')}</td><td>${fmtDate(o.promiseDate)||'-'}</td><td>${esc(o.courier||'URBANO')}</td><td>${channelBadge(o.channel)}</td><td><span class="badge ${Number(o.visits)>=3?'b-red':Number(o.visits)>=2?'b-pending':'b-gray'}">${Number(o.visits||0)}</span></td><td><div class="status-cell"><span class="status-main ${stc}">${esc(estado)}</span></div></td><td>${fmtDate(o.deliveryDate)||'-'}</td><td><span class="days">${d===null?'-':d}</span></td><td><button class="action-mini manage${mgClass}" data-guide="${esc(o.guide)}" title="${mgTitle}" aria-label="Gestionar"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 18.5 3.5 21v-4.6A8 8 0 0 1 3 13.5v-3A6.5 6.5 0 0 1 9.5 4h5A6.5 6.5 0 0 1 21 10.5v3a6.5 6.5 0 0 1-6.5 6.5h-5A6.6 6.6 0 0 1 7 18.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10h8M8 14h5" stroke-width="1.8" stroke-linecap="round"/></svg></button></td><td><select class="claim-inline claim-select" data-guide="${esc(o.guide)}"><option value=""> </option>${state.claims.map(c=>`<option value="${esc(c)}" ${o.claim===c?'selected':''}>${esc(c)}</option>`).join('')}</select></td></tr>`}).join('');$('ordersEmpty').style.display=arr.length?'none':'block';$('visibleCount').textContent=`${arr.length} visibles · ${state.orders.length} totales`;$('sideCount').textContent=`${state.orders.length} pedidos cargados`;bindRowEvents();syncTableScrollbar()}
 
 function bindRowEvents(){
   $$('.manage').forEach(el=>el.onclick=e=>{e.stopPropagation();openModal(el.dataset.guide)});
@@ -526,7 +535,21 @@ function saveModal(){
   saveState(); closeModal(); toast('Gestión guardada.'); refreshAll();
   window.UrbanoFirebase?.saveOrder(o).catch(()=>{});
 }
-function openSocioModal(guide){const o=state.orders.find(x=>x.guide===guide);if(!o)return;socioGuide=guide;$('socioModalTitle').textContent=`Datos del socio · ${o.guide}`;const details=[['Código socio',o.socio||'-'],['Nombre',o.memberName||o.recipient||'-'],['Celular',o.phone||o.phone1||'-'],['Canal',o.channel||'-'],['Dirección',o.address||'-'],['Referencia',o.reference||'-']];$('socioDetails').innerHTML=details.map(([a,b])=>`<div class="socio-item"><label>${esc(a)}</label><div>${esc(b)}</div></div>`).join('');$('socioModal').classList.add('show')}
+function openSocioModal(guide){
+  const o=state.orders.find(x=>x.guide===guide);
+  if(!o)return;
+  const cod=o.socio||'-';
+  const nombre=o.memberName||o.recipient||'-';
+  const celular=o.phone||o.phone1||o.phone2||'-';
+  $('socioModalTitle').textContent=`Socio · ${o.guide}`;
+  $('socioModalBody').innerHTML=`
+    <div class="socio-info-grid">
+      <div class="socio-info-card"><label>Código</label><strong>${esc(cod)}</strong></div>
+      <div class="socio-info-card"><label>Nombre</label><strong>${esc(nombre)}</strong></div>
+      <div class="socio-info-card"><label>Celular</label><strong>${esc(celular)}</strong></div>
+    </div>`;
+  $('socioModal').classList.add('show');
+}
 function closeSocioModal(){$('socioModal').classList.remove('show');socioGuide=null}
 function copySocioData(){const o=state.orders.find(x=>x.guide===socioGuide);if(!o)return;const txt=`Guía: ${o.guide}\nSocio: ${o.socio||'-'}\nNombre: ${o.memberName||o.recipient||'-'}\nCelular: ${o.phone||o.phone1||'-'}\nDirección: ${o.address||'-'}\nReferencia: ${o.reference||'-'}`;navigator.clipboard?.writeText(txt).then(()=>toast('Datos del socio copiados.'))}
 function dailyReceivedSeries(){const m=$('dashMonth').value;const arr=state.orders.filter(o=>!m||monthKey(o.guideDate)===m);const g={};arr.forEach(o=>{const k=isoDate(o.guideDate);if(!k)return;g[k]=(g[k]||0)+1});return Object.entries(g).sort((a,b)=>a[0].localeCompare(b[0]))}
@@ -813,18 +836,17 @@ async function migrateLocalIfNeeded(){
     await saveConfig();
     return;
   }
-  const ok=confirm(`Firebase está vacío y encontré ${localMonths.length} mes(es) en este navegador. ¿Quieres subirlos ahora a Firebase?`);
-  if(ok)await syncMonths(localMonths);
-  else await saveConfig();
+  await syncMonths(localMonths);
 }
+const withTimeout=(p,ms=12000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('firebase-timeout')),ms))]);
 async function initializeCloud(){
   setSync('syncing','Firebase: conectando');
-  await loadConfig();
-  await discoverMonths();
-  await migrateLocalIfNeeded();
+  await withTimeout(loadConfig());
+  await withTimeout(discoverMonths());
+  await withTimeout(migrateLocalIfNeeded());
   if(availableMonths.length){
     const preferred=availableMonths[0];
-    await loadMonth(preferred);
+    await withTimeout(loadMonth(preferred));
     const f=$('fMonth'), d=$('dashMonth');
     if(f)f.value=preferred;
     if(d)d.value=preferred;
@@ -848,29 +870,31 @@ window.UrbanoFirebase={
 await setPersistence(auth,browserLocalPersistence).catch(()=>{});
 
 
-onAuthStateChanged(auth,async user=>{
-  if(!user){
-    setSync('syncing','Firebase: iniciando');
-    try{
-      await signInAnonymously(auth);
-    }catch(error){
-      console.error(error);
-      setSync('error','Firebase: activa acceso anónimo');
-      alert('Activa Firebase Authentication > Método de acceso > Anónimo para usar la web sin login.');
-    }
-    return;
-  }
-
+let cloudInitStarted=false;
+async function bootCloud(user){
+  if(cloudInitStarted)return;
+  cloudInitStarted=true;
   currentUser=user;
   try{
     await initializeCloud();
   }catch(error){
-    console.error(error);
-    setSync('error','Firebase: revisa reglas/conexión');
-    const msg=String(error?.code||error?.message||'');
-    if(msg.includes('permission-denied')){
-      alert('Firestore está bloqueado. Usa reglas con request.auth != null y Authentication anónima activa.');
-    }
+    console.warn('Firebase cloud unavailable, local mode remains active.', error);
+    setSync('error','Modo local');
+    cloudInitStarted=false;
+  }
+}
+onAuthStateChanged(auth,async user=>{
+  if(user){
+    await bootCloud(user);
+    return;
+  }
+  try{
+    setSync('syncing','Firebase: conectando');
+    const cred=await signInAnonymously(auth);
+    await bootCloud(cred.user);
+  }catch(error){
+    console.warn('Anonymous auth unavailable, local mode remains active.', error);
+    setSync('error','Modo local');
   }
 });
 </script>
