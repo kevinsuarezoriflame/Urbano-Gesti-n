@@ -236,8 +236,51 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 @media(max-width:700px){.socio-info-grid{grid-template-columns:1fr}}
 </style>
 
+
+<style id="urbano-filter-range-v1">
+.filter-panel .filters{
+  display:flex!important;
+  align-items:end;
+  gap:8px;
+  flex-wrap:nowrap!important;
+  overflow-x:auto;
+  padding:10px 12px;
+}
+.filter-panel .field{flex:0 0 auto}
+#fMonth{width:145px}
+#fDateFrom,#fDateTo{width:132px}
+#fChannel{width:105px}
+#fDelivered{width:130px}
+#fStatus{width:170px}
+#fClaim{width:190px}
+#fVisits{width:110px}
+.filter-panel .search-span{flex:0 0 240px!important;min-width:240px!important}
+#fSearch{width:240px}
+.quick-left{gap:8px}
+#clearFilters{white-space:nowrap}
+.sort-indicator{font-size:10px;margin-left:4px;color:#8C929B}
+th.sortable.active-sort .sort-indicator{color:#A71920;font-weight:900}
+@media(max-width:900px){
+  .filter-panel .filters{overflow-x:auto}
+}
+</style>
+
+
+<style id="status-edit-style">
+.status-edit-modal{width:min(520px,94vw)}
+.status-edit-sub{margin-top:5px;color:#7A8089;font-size:11px}
+.status-edit-note{margin-top:12px;color:#7A8089;font-size:10.5px}
+.status-with-edit{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.status-edit-btn{
+  width:23px;height:23px;padding:0;border:0;background:transparent;color:#9B696C;
+  border-radius:6px;display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:13px;line-height:1
+}
+.status-edit-btn:hover{background:#F8E5E6;color:#A71920}
+</style>
+
 </head>
-<body data-app-version="socio-estable-v1">
+<body data-app-version="editar-status-v1">
 
 
 
@@ -263,21 +306,22 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
     <div class="content">
       <section class="page active" id="page-pedidos">
         <div class="section-head"><div><h2>Pedidos</h2></div><div class="actions"><button class="btn" id="exportOrders">⬇ Excel</button></div></div>
-        <div class="quickbar"><div class="quick-left"><button class="btn small filter-toggle" id="toggleFilters">▾ Filtros</button><button class="chip" id="qPending">↑ Pendientes primero</button><button class="chip" id="qUngestioned">Solo sin gestión</button><button class="btn small" id="copyPending">📋 Copiar guías pendientes</button><button class="btn small" id="clearFilters">Limpiar</button></div><div class="quick-right"><span class="summary-mini" id="visibleCount">0 pedidos</span></div></div>
+        <div class="quickbar"><div class="quick-left"><button class="btn small filter-toggle" id="toggleFilters">▾ Filtros</button><button class="btn small" id="clearFilters">Limpiar filtros</button></div><div class="quick-right"><span class="summary-mini" id="visibleCount">0 pedidos</span></div></div>
         <div class="card filter-panel" id="filterPanel">
           <div class="filters">
             <div class="field"><label>Mes</label><select class="select" id="fMonth" autocomplete="off"></select></div>
-            <div class="field"><label>Fecha guía</label><input class="input" type="date" id="fDate" autocomplete="off"></div>
+            <div class="field"><label>Desde</label><input class="input" type="date" id="fDateFrom" autocomplete="off"></div>
+<div class="field"><label>Hasta</label><input class="input" type="date" id="fDateTo" autocomplete="off"></div>
             <div class="field"><label>Canal</label><select class="select" id="fChannel" autocomplete="off"><option value="">Todos</option><option>HD</option><option>PUP</option><option>SPO</option></select></div>
             <div class="field"><label>Estado</label><select class="select" id="fDelivered" autocomplete="off"><option value="">Todos</option><option value="ENTREGADO">Entregados</option><option value="NO ENTREGADO">No entregados</option></select></div>
             <div class="field"><label>Status Urbano</label><select class="select" id="fStatus" autocomplete="off"><option value="">Todos</option></select></div>
             <div class="field"><label>Clasificación / Claims</label><select class="select" id="fClaim" autocomplete="off"><option value="">Todas</option></select></div>
             <div class="field"><label>Visitas</label><select class="select" id="fVisits" autocomplete="off"><option value="">Todas</option><option value="0">0 visitas</option><option value="1">1 visita</option><option value="2">2 visitas</option><option value="3+">3+ visitas</option></select></div>
-            <div class="field search-span"><label>Buscar</label><input class="input" id="fSearch" autocomplete="off" placeholder="Guía, WYB, código, orden, socio, nombre, celular, dirección..."></div>
+            <div class="field search-span"><label>Buscar</label><input class="input" id="fSearch" autocomplete="off" placeholder="Buscar guía, nombre, código..."></div>
           </div>
         </div>
         <div class="card table-card"><div class="table-shell"><div class="table-scroll" id="tableScroll"><table class="data-table" id="ordersTable"><thead><tr>
-          <th class="sticky-1 sortable" data-sort="guide">No guía</th><th class="sticky-2">Guía Urbano</th><th class="sortable" data-sort="guideDate">Fecha guía</th><th>Cod distr.</th><th>Nombre destinatario</th><th>Barrio</th><th>Dirección envío</th><th>Referencia</th><th>Celular</th><th class="sortable" data-sort="order">Número de orden</th><th>Ciudad</th><th>Peso</th><th>Promesa de entrega</th><th>Courier</th><th class="sortable" data-sort="channel">Canal</th><th class="sortable" data-sort="visits">Visitas</th><th class="sortable" data-sort="status">Estado</th><th>Fecha entrega</th><th class="sortable" data-sort="days">Días</th><th>Gestión</th><th>Clasificación / Claims</th>
+          <th class="sticky-1 sortable" data-sort="guide">No guía</th><th class="sticky-2">Guía Urbano</th><th class="sortable" data-sort="guideDate">Fecha guía</th><th>Cod distr.</th><th>Nombre destinatario</th><th>Barrio</th><th>Dirección envío</th><th>Referencia</th><th>Celular</th><th class="sortable" data-sort="order">Número de orden</th><th>Ciudad</th><th>Peso</th><th>Promesa de entrega</th><th>Courier</th><th class="sortable" data-sort="channel">Canal</th><th class="sortable" data-sort="visits">Visitas</th><th class="sortable" data-sort="status">Estado</th><th>Fecha entrega</th><th class="sortable" data-sort="days">Días <span class="sort-indicator" id="daysSortIcon">↕</span></th><th>Gestión</th><th>Clasificación / Claims</th>
         </tr></thead><tbody id="ordersBody"></tbody></table><div class="empty" id="ordersEmpty"><strong>Aún no hay pedidos</strong></div></div><div class="h-scroll" id="tableHScroll"><div class="h-scroll-rail" id="tableHScrollRail"><div class="h-scroll-thumb" id="tableHScrollThumb"></div></div></div></div></div>
       </section>
 
@@ -317,6 +361,35 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 </div>
 
 <div class="modal-backdrop" id="orderModal"><div class="modal management-modal"><div class="modal-head"><h3 id="modalTitle">Gestión del pedido</h3><button class="modal-close" id="modalClose">×</button></div><div class="modal-body"><div class="field"><label>Gestión / Comentario</label><textarea class="textarea" id="modalManagement" placeholder="Escribe aquí la gestión realizada..."></textarea></div><div class="modal-actions"><button class="btn" id="modalCancel">Cancelar</button><button class="btn primary" id="modalSave">Guardar gestión</button></div></div></div></div>
+
+<div class="modal-backdrop" id="statusEditModal">
+  <div class="modal status-edit-modal">
+    <div class="modal-head">
+      <div>
+        <h3>Editar entrega</h3>
+        <div class="status-edit-sub" id="statusEditSub"></div>
+      </div>
+      <button class="modal-close" id="statusEditClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Status Urbano</label>
+        <input class="input" id="statusEditValue" list="statusEditList" placeholder="Selecciona o escribe el estado">
+        <datalist id="statusEditList"></datalist>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>Fecha entrega</label>
+        <input class="input" type="date" id="statusEditDelivery">
+      </div>
+      <div class="status-edit-note">Al guardar se recalculan Días, Entregados, Efectividad y Dashboard.</div>
+      <div class="modal-actions">
+        <button class="btn" id="statusEditCancel">Cancelar</button>
+        <button class="btn primary" id="statusEditSave">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="socioModal"><div class="modal" style="width:min(620px,96vw)"><div class="modal-head"><h3 id="socioModalTitle">Datos del socio · Retiro de agencia</h3><button class="modal-close" id="socioModalClose">×</button></div><div class="modal-body"><div class="socio-grid" id="socioDetails"></div><div class="modal-actions"><button class="btn" id="copySocioData">📋 Copiar datos</button><button class="btn primary" id="socioModalOk">Cerrar</button></div></div></div></div>
 
 <div class="modal-backdrop" id="dailyChartModal"><div class="modal"><div class="modal-head"><h3 id="dailyChartTitle">Pedidos cargados por día · FECHA GUIA</h3><button class="modal-close" id="dailyChartClose">×</button></div><div class="modal-body"><div class="chart-summary" id="dailyChartSummary"></div><div id="dailyChartBody"></div></div></div></div>
@@ -331,7 +404,7 @@ const DEFAULT_CLAIMS=[
 'DIRECCION INCORRECTA','CELULAR INCORRECTO','CAMBIO A PUP','FUERA DE COBERTURA','CAMBIO DE DIRECCIÓN','ZONA PELIGROSA','CLIENTE NO RETIRA','DEVOLUCION AL REMITENTE','CLIENTE NO DESEA RECIBIR','DIRECCION INSUFICIENTE','CLIENTE NO CONTESTA','TRAYECTO ESPECIAL','NO HAY QUIEN RECIBA','NOVEDAD URBANO','EXTRAVIADO-ROBADO','REMPLAZO DE GUIA URBANO','FERIADO NACIONAL','CIERRES DE VIAS','BLOQUEOS DE VIAS','CLIENTE DE VACACIONES','TOQUE DE QUEDA'
 ];
 const initialState={orders:[],claims:DEFAULT_CLAIMS,responsibles:[],defaultResponsible:'',holidays:[],pupDays:1,closedMonths:[],lastLoads:{oriflame:'',urbano:'',tc:''}};
-let state=loadState(); let selected=new Set(); let modalGuide=null; let socioGuide=null; let sortState={key:'guideDate',dir:'desc'}; let pendingFirst=false; let onlyUngestioned=false; let staged={oriflame:null,urbano:null,tc:null};
+let state=loadState(); let selected=new Set(); let modalGuide=null; let socioGuide=null; let statusEditGuide=null; let sortState={key:'guideDate',dir:'desc'}; let pendingFirst=false; let onlyUngestioned=false; let staged={oriflame:null,urbano:null,tc:null};
 const $=id=>document.getElementById(id); const $$=sel=>Array.from(document.querySelectorAll(sel));
 function loadState(){try{const x=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');return {...structuredClone(initialState),...(x||{}),lastLoads:{...initialState.lastLoads,...((x||{}).lastLoads||{})}}}catch(e){return structuredClone(initialState)}}
 function saveState(){
@@ -397,7 +470,8 @@ function refreshFilterOptions(){const statusEl=$('fStatus'),claimEl=$('fClaim');
 function resetOperationalFilters(){
   const defaults={
     fMonth:'',
-    fDate:'',
+    fDateFrom:'',
+    fDateTo:'',
     fChannel:'',
     fDelivered:'',
     fStatus:'',
@@ -415,24 +489,48 @@ function resetOperationalFilters(){
   $('qUngestioned')?.classList.remove('active');
 }
 
-function filteredOrders(){const month=$('fMonth').value,date=$('fDate').value,channel=$('fChannel').value,del=$('fDelivered').value,status=$('fStatus').value,claim=$('fClaim').value,vis=$('fVisits').value;const qTokens=normKey($('fSearch').value).split(' ').filter(Boolean);let arr=state.orders.filter(o=>{if(month&&monthKey(o.guideDate)!==month)return false;if(date&&isoDate(o.guideDate)!==date)return false;if(channel&&o.channel!==channel)return false;if(del&&deliveredState(o)!==del)return false;if(status&&normalizeStatus(o.status)!==status)return false;if(claim&&o.claim!==claim)return false;const vv=Number(o.visits||0);if(vis==='0'&&vv!==0)return false;if(vis==='1'&&vv!==1)return false;if(vis==='2'&&vv!==2)return false;if(vis==='3+'&&vv<3)return false;if(onlyUngestioned&&norm(o.management))return false;if(qTokens.length){const hay=normKey([o.guide,o.wyb,o.codDist,o.order,o.socio,o.memberName,o.recipient,o.phone,o.phone1,o.phone2,o.address,o.reference,o.barrio,o.city,o.province,o.channel,o.status,o.management,o.claim].join(' '));if(!qTokens.every(t=>hay.includes(t)))return false}return true});const key=sortState.key;arr.sort((a,b)=>{if(pendingFirst){const pa=deliveredState(a)==='NO ENTREGADO'?0:1,pb=deliveredState(b)==='NO ENTREGADO'?0:1;if(pa!==pb)return pa-pb}let va=key==='days'?(orderDays(a)??9999):(key==='deliveredState'?deliveredState(a):a[key]);let vb=key==='days'?(orderDays(b)??9999):(key==='deliveredState'?deliveredState(b):b[key]);if(key.toLowerCase().includes('date')){va=parseDate(va)?.getTime()||0;vb=parseDate(vb)?.getTime()||0}else if(key==='visits'||key==='days'){va=Number(va||0);vb=Number(vb||0)}else{va=norm(va).toUpperCase();vb=norm(vb).toUpperCase()}return (va<vb?-1:va>vb?1:0)*(sortState.dir==='asc'?1:-1)});return arr}
+function filteredOrders(){const month=$('fMonth').value,dateFrom=$('fDateFrom').value,dateTo=$('fDateTo').value,channel=$('fChannel').value,del=$('fDelivered').value,status=$('fStatus').value,claim=$('fClaim').value,vis=$('fVisits').value;const qTokens=normKey($('fSearch').value).split(' ').filter(Boolean);let arr=state.orders.filter(o=>{if(month&&monthKey(o.guideDate)!==month)return false;const gd=isoDate(o.guideDate);if(dateFrom&&gd<dateFrom)return false;if(dateTo&&gd>dateTo)return false;if(channel&&o.channel!==channel)return false;if(del&&deliveredState(o)!==del)return false;if(status&&normalizeStatus(o.status)!==status)return false;if(claim&&o.claim!==claim)return false;const vv=Number(o.visits||0);if(vis==='0'&&vv!==0)return false;if(vis==='1'&&vv!==1)return false;if(vis==='2'&&vv!==2)return false;if(vis==='3+'&&vv<3)return false;if(onlyUngestioned&&norm(o.management))return false;if(qTokens.length){const hay=normKey([o.guide,o.wyb,o.codDist,o.order,o.socio,o.memberName,o.recipient,o.phone,o.phone1,o.phone2,o.address,o.reference,o.barrio,o.city,o.province,o.channel,o.status,o.management,o.claim].join(' '));if(!qTokens.every(t=>hay.includes(t)))return false}return true});const key=sortState.key;arr.sort((a,b)=>{if(pendingFirst){const pa=deliveredState(a)==='NO ENTREGADO'?0:1,pb=deliveredState(b)==='NO ENTREGADO'?0:1;if(pa!==pb)return pa-pb}let va=key==='days'?(orderDays(a)??9999):(key==='deliveredState'?deliveredState(a):a[key]);let vb=key==='days'?(orderDays(b)??9999):(key==='deliveredState'?deliveredState(b):b[key]);if(key.toLowerCase().includes('date')){va=parseDate(va)?.getTime()||0;vb=parseDate(vb)?.getTime()||0}else if(key==='visits'||key==='days'){va=Number(va||0);vb=Number(vb||0)}else{va=norm(va).toUpperCase();vb=norm(vb).toUpperCase()}return (va<vb?-1:va>vb?1:0)*(sortState.dir==='asc'?1:-1)});return arr}
 function statusBadge(o){const d=deliveredState(o);return d==='ENTREGADO'?'<span class="badge b-delivered">✓ ENTREGADO</span>':'<span class="badge b-pending">● NO ENTREGADO</span>'}
 function channelBadge(c){return `<span class="badge ${c==='HD'?'b-red':c==='PUP'?'b-blue':'b-gray'}">${esc(c||'-')}</span>`}
 function statusClass(v){const s=normalizeStatus(v);if(s.includes('ENTREGADO'))return'st-delivered';if(s.includes('SALIO A RUTA')||s.includes('EN RUTA'))return'st-route';if(s.includes('ARRIBADO'))return'st-arrived';if(s.includes('VISITADO'))return'st-visited';if(s.includes('SOLICITUD DE SERVICIO'))return'st-service';if(s.includes('DESPACHADO'))return'st-dispatched';return'st-other'}
-function renderOrders(){addMonthsToSelect();refreshFilterOptions();const arr=filteredOrders();$('ordersBody').innerHTML=arr.map(o=>{const d=orderDays(o);const phone=o.phone||o.phone1||'-';const ref=o.reference||'-';const estado=normalizeStatus(o.status)||deliveredState(o);const stc=statusClass(estado);const codDistNum=Number(String(o.codDist||'').replace(/\.0$/,'').trim());const isUrbanoAgency=Number.isFinite(codDistNum)&&codDistNum>=9000&&codDistNum<=9100;const socioButton=isUrbanoAgency?`<button class="socio-btn view-socio" data-guide="${esc(o.guide)}">Ver socio</button>`:'';const mgClass=norm(o.management)?' has-management':'';const mgTitle=norm(o.management)?`Gestión registrada: ${esc(o.management)}`:'Agregar gestión';return `<tr data-guide="${esc(o.guide)}"><td class="sticky-1"><span class="guide-code">${esc(o.guide)}</span></td><td class="sticky-2"><span class="urbano-guide-code">${esc(o.wyb||'-')}</span></td><td>${fmtDate(o.guideDate)||'-'}</td><td>${esc(o.codDist||'-')}</td><td><div class="recipient-cell"><span>${esc(o.recipient||'-')}</span>${socioButton}</div></td><td>${esc(o.barrio||'-')}</td><td>${esc(o.address||'-')}</td><td>${esc(ref)}</td><td>${esc(phone)}</td><td>${esc(o.order||'-')}</td><td>${esc(o.city||o.province||'-')}</td><td>${esc(o.weight||'-')}</td><td>${fmtDate(o.promiseDate)||'-'}</td><td>${esc(o.courier||'URBANO')}</td><td>${channelBadge(o.channel)}</td><td><span class="badge ${Number(o.visits)>=3?'b-red':Number(o.visits)>=2?'b-pending':'b-gray'}">${Number(o.visits||0)}</span></td><td><div class="status-cell"><span class="status-main ${stc}">${esc(estado)}</span></div></td><td>${fmtDate(o.deliveryDate)||'-'}</td><td><span class="days">${d===null?'-':d}</span></td><td><button class="action-mini manage${mgClass}" data-guide="${esc(o.guide)}" title="${mgTitle}" aria-label="Gestionar"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 18.5 3.5 21v-4.6A8 8 0 0 1 3 13.5v-3A6.5 6.5 0 0 1 9.5 4h5A6.5 6.5 0 0 1 21 10.5v3a6.5 6.5 0 0 1-6.5 6.5h-5A6.6 6.6 0 0 1 7 18.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10h8M8 14h5" stroke-width="1.8" stroke-linecap="round"/></svg></button></td><td><select class="claim-inline claim-select" data-guide="${esc(o.guide)}"><option value=""> </option>${state.claims.map(c=>`<option value="${esc(c)}" ${o.claim===c?'selected':''}>${esc(c)}</option>`).join('')}</select></td></tr>`}).join('');$('ordersEmpty').style.display=arr.length?'none':'block';$('visibleCount').textContent=`${arr.length} visibles · ${state.orders.length} totales`;$('sideCount').textContent=`${state.orders.length} pedidos cargados`;bindRowEvents();syncTableScrollbar()}
+
+function updateSortIndicators(){
+  $$('th.sortable').forEach(th=>th.classList.toggle('active-sort',th.dataset.sort===sortState.key));
+  const icon=$('daysSortIcon');
+  if(icon){
+    if(sortState.key!=='days')icon.textContent='↕';
+    else icon.textContent=sortState.dir==='asc'?'↑':'↓';
+  }
+}
+
+function renderOrders(){addMonthsToSelect();refreshFilterOptions();const arr=filteredOrders();$('ordersBody').innerHTML=arr.map(o=>{const d=orderDays(o);const phone=o.phone||o.phone1||'-';const ref=o.reference||'-';const estado=normalizeStatus(o.status)||deliveredState(o);const stc=statusClass(estado);const codDistNum=Number(String(o.codDist||'').replace(/\.0$/,'').trim());const isUrbanoAgency=Number.isFinite(codDistNum)&&codDistNum>=9000&&codDistNum<=9100;const socioButton=isUrbanoAgency?`<button class="socio-btn view-socio" data-guide="${esc(o.guide)}">Ver socio</button>`:'';const mgClass=norm(o.management)?' has-management':'';const mgTitle=norm(o.management)?`Gestión registrada: ${esc(o.management)}`:'Agregar gestión';return `<tr data-guide="${esc(o.guide)}"><td class="sticky-1"><span class="guide-code">${esc(o.guide)}</span></td><td class="sticky-2"><span class="urbano-guide-code">${esc(o.wyb||'-')}</span></td><td>${fmtDate(o.guideDate)||'-'}</td><td>${esc(o.codDist||'-')}</td><td><div class="recipient-cell"><span>${esc(o.recipient||'-')}</span>${socioButton}</div></td><td>${esc(o.barrio||'-')}</td><td>${esc(o.address||'-')}</td><td>${esc(ref)}</td><td>${esc(phone)}</td><td>${esc(o.order||'-')}</td><td>${esc(o.city||o.province||'-')}</td><td>${esc(o.weight||'-')}</td><td>${fmtDate(o.promiseDate)||'-'}</td><td>${esc(o.courier||'URBANO')}</td><td>${channelBadge(o.channel)}</td><td><span class="badge ${Number(o.visits)>=3?'b-red':Number(o.visits)>=2?'b-pending':'b-gray'}">${Number(o.visits||0)}</span></td><td><div class="status-with-edit"><span class="status-main ${stc}">${esc(estado)}</span><button class="status-edit-btn edit-status" data-guide="${esc(o.guide)}" title="Editar estado y fecha de entrega">✎</button></div></td><td>${fmtDate(o.deliveryDate)||'-'}</td><td><span class="days">${d===null?'-':d}</span></td><td><button class="action-mini manage${mgClass}" data-guide="${esc(o.guide)}" title="${mgTitle}" aria-label="Gestionar"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 18.5 3.5 21v-4.6A8 8 0 0 1 3 13.5v-3A6.5 6.5 0 0 1 9.5 4h5A6.5 6.5 0 0 1 21 10.5v3a6.5 6.5 0 0 1-6.5 6.5h-5A6.6 6.6 0 0 1 7 18.5Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10h8M8 14h5" stroke-width="1.8" stroke-linecap="round"/></svg></button></td><td><select class="claim-inline claim-select" data-guide="${esc(o.guide)}"><option value=""> </option>${state.claims.map(c=>`<option value="${esc(c)}" ${o.claim===c?'selected':''}>${esc(c)}</option>`).join('')}</select></td></tr>`}).join('');$('ordersEmpty').style.display=arr.length?'none':'block';$('visibleCount').textContent=`${arr.length} visibles · ${state.orders.length} totales`;$('sideCount').textContent=`${state.orders.length} pedidos cargados`;bindRowEvents();syncTableScrollbar();updateSortIndicators()}
 
 function bindRowEvents(){
-  $$('.manage').forEach(el=>el.onclick=e=>{e.stopPropagation();openModal(el.dataset.guide)});
+  $$('.manage').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();
+    openModal(el.dataset.guide);
+  });
+
   $$('.claim-select').forEach(el=>el.onchange=e=>{
     e.stopPropagation();
     const o=state.orders.find(x=>x.guide===el.dataset.guide);
     if(!o)return;
-    o.claim=el.value; saveState(); renderDashboard();
+    o.claim=el.value;
+    saveState();
+    renderDashboard();
     window.UrbanoFirebase?.saveOrder(o).catch(()=>{});
   });
-  $$('.view-socio').forEach(el=>el.onclick=e=>{e.stopPropagation();openSocioModal(el.dataset.guide)})
-}
 
+  $$('.view-socio').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();
+    openSocioModal(el.dataset.guide);
+  });
+
+  $$('.edit-status').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();
+    openStatusEdit(el.dataset.guide);
+  });
+}
 function processOriflame(){
   const rows=sourceRows('oriflame');
   if(!rows.length)return toast('No hay datos para procesar.','warn');
@@ -638,6 +736,59 @@ function saveModal(){
   saveState(); closeModal(); toast('Gestión guardada.'); refreshAll();
   window.UrbanoFirebase?.saveOrder(o).catch(()=>{});
 }
+
+function statusEditOptions(){
+  const base=[
+    'SOLICITUD DE SERVICIO',
+    'DESPACHADO A DESTINO',
+    'ARRIBADO EN DESTINO',
+    'SALIO A RUTA',
+    'VISITADO',
+    'ENTREGADO'
+  ];
+  return [...new Set([...base,...state.orders.map(o=>normalizeStatus(o.status)).filter(Boolean)])];
+}
+
+function openStatusEdit(guide){
+  const o=state.orders.find(x=>x.guide===guide);
+  if(!o)return;
+
+  statusEditGuide=guide;
+  $('statusEditSub').textContent=`Guía ${o.guide} · ${o.recipient||''}`;
+  $('statusEditValue').value=normalizeStatus(o.status)||'';
+  $('statusEditDelivery').value=isoDate(o.deliveryDate)||'';
+  $('statusEditList').innerHTML=statusEditOptions().map(s=>`<option value="${esc(s)}"></option>`).join('');
+  $('statusEditModal').classList.add('show');
+}
+
+function closeStatusEdit(){
+  $('statusEditModal').classList.remove('show');
+  statusEditGuide=null;
+}
+
+function saveStatusEdit(){
+  const o=state.orders.find(x=>x.guide===statusEditGuide);
+  if(!o)return;
+
+  const newStatus=normalizeStatus($('statusEditValue').value);
+  const newDelivery=isoDate($('statusEditDelivery').value);
+
+  if(newStatus==='ENTREGADO'&&!newDelivery){
+    toast('Para marcar ENTREGADO debes colocar la fecha de entrega.','warn');
+    return;
+  }
+
+  o.status=newStatus;
+  o.deliveryDate=newDelivery||'';
+
+  saveState();
+  closeStatusEdit();
+  refreshAll();
+
+  window.UrbanoFirebase?.saveOrder(o).catch(()=>{});
+  toast('Estado y fecha de entrega actualizados.');
+}
+
 function openSocioModal(guide){
   const o=state.orders.find(x=>x.guide===guide);
   if(!o)return;
@@ -741,11 +892,15 @@ $$('.nav-btn').forEach(b=>b.onclick=()=>switchPage(b.dataset.page));$$('[data-go
 // Tabs
 $$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));$$('.base-panel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('tab-'+b.dataset.tab).classList.add('active')});
 // Filters
-['fDate','fChannel','fDelivered','fStatus','fClaim','fVisits'].forEach(id=>$(id).onchange=renderOrders);
-$('fMonth').onchange=()=>{const m=$('fMonth').value;if(window.UrbanoFirebase){window.UrbanoFirebase.ensureSelection(m).then(()=>renderOrders()).catch(()=>renderOrders())}else renderOrders()};$('fSearch').oninput=renderOrders;$('qPending').onclick=()=>{pendingFirst=!pendingFirst;$('qPending').classList.toggle('active',pendingFirst);renderOrders()};$('qUngestioned').onclick=()=>{onlyUngestioned=!onlyUngestioned;$('qUngestioned').classList.toggle('active',onlyUngestioned);renderOrders()};$('clearFilters').onclick=()=>{['fMonth','fDate','fChannel','fDelivered','fStatus','fClaim','fVisits','fSearch'].forEach(id=>$(id).value='');pendingFirst=false;onlyUngestioned=false;$('qPending').classList.remove('active');$('qUngestioned').classList.remove('active');renderOrders()};$('copyPending').onclick=()=>{const gs=filteredOrders().filter(o=>deliveredState(o)==='NO ENTREGADO').map(o=>o.guide);navigator.clipboard?.writeText(gs.join('\n')).then(()=>toast(`${gs.length} guías pendientes copiadas.`))};$('exportOrders').onclick=exportOrders;$$('th.sortable').forEach(th=>th.onclick=()=>{const key=th.dataset.sort;if(sortState.key===key)sortState.dir=sortState.dir==='asc'?'desc':'asc';else sortState={key,dir:'asc'};renderOrders()});const FILTER_COLLAPSE_KEY='urbano_filters_collapsed';const setFilterPanel=collapsed=>{$('filterPanel').classList.toggle('collapsed',collapsed);$('toggleFilters').textContent=collapsed?'▸ Filtros':'▾ Filtros';localStorage.setItem(FILTER_COLLAPSE_KEY,collapsed?'1':'0');setTimeout(syncTableScrollbar,240)};$('toggleFilters').onclick=()=>setFilterPanel(!$('filterPanel').classList.contains('collapsed'));setFilterPanel(localStorage.getItem(FILTER_COLLAPSE_KEY)==='1');
+['fDateFrom','fDateTo','fChannel','fDelivered','fStatus','fClaim','fVisits'].forEach(id=>$(id).onchange=renderOrders);
+$('fMonth').onchange=()=>{const m=$('fMonth').value;if(window.UrbanoFirebase){window.UrbanoFirebase.ensureSelection(m).then(()=>renderOrders()).catch(()=>renderOrders())}else renderOrders()};$('fSearch').oninput=renderOrders;$('clearFilters').onclick=()=>{['fMonth','fDateFrom','fDateTo','fChannel','fDelivered','fStatus','fClaim','fVisits','fSearch'].forEach(id=>$(id).value='');pendingFirst=false;onlyUngestioned=false;renderOrders()};$('exportOrders').onclick=exportOrders;$$('th.sortable').forEach(th=>th.onclick=()=>{const key=th.dataset.sort;if(sortState.key===key)sortState.dir=sortState.dir==='asc'?'desc':'asc';else sortState={key,dir:'asc'};renderOrders()});const FILTER_COLLAPSE_KEY='urbano_filters_collapsed';const setFilterPanel=collapsed=>{$('filterPanel').classList.toggle('collapsed',collapsed);$('toggleFilters').textContent=collapsed?'▸ Filtros':'▾ Filtros';localStorage.setItem(FILTER_COLLAPSE_KEY,collapsed?'1':'0');setTimeout(syncTableScrollbar,240)};$('toggleFilters').onclick=()=>setFilterPanel(!$('filterPanel').classList.contains('collapsed'));setFilterPanel(localStorage.getItem(FILTER_COLLAPSE_KEY)==='1');
 // Files & process
 $('fileOriflame').onchange=e=>stageFile('oriflame',e.target.files[0],'URBANO','lastOriflame');$('fileUrbano').onchange=e=>stageFile('urbano',e.target.files[0],'URBANO DATA','lastUrbano');$('fileTC').onchange=e=>stageFile('tc',e.target.files[0],['TCII','TC II','TCIII','TC III','TC','TOTAL CONTROL'],'lastTC');$('processOriflame').onclick=processOriflame;$('processUrbano').onclick=processUrbano;$('processTC').onclick=processTC;$('undoLastLoad').onclick=undoLastLoad;
 // Modal
+$('statusEditClose').onclick=closeStatusEdit;
+$('statusEditCancel').onclick=closeStatusEdit;
+$('statusEditSave').onclick=saveStatusEdit;
+$('statusEditModal').onclick=e=>{if(e.target===$('statusEditModal'))closeStatusEdit()};
 $('modalClose').onclick=closeModal;$('modalCancel').onclick=closeModal;$('modalSave').onclick=saveModal;$('orderModal').onclick=e=>{if(e.target===$('orderModal'))closeModal()};$('socioModalClose').onclick=closeSocioModal;$('socioModalOk').onclick=closeSocioModal;$('copySocioData').onclick=copySocioData;$('socioModal').onclick=e=>{if(e.target===$('socioModal'))closeSocioModal()};$('openDailyOrdersChart').onclick=openDailyOrdersChart;$('dailyChartClose').onclick=closeDailyOrdersChart;$('dailyChartModal').onclick=e=>{if(e.target===$('dailyChartModal'))closeDailyOrdersChart()};
 // Settings
 $('addClaim').onclick=()=>{const v=norm($('newClaim').value).toUpperCase();if(!v)return;if(!state.claims.includes(v))state.claims.push(v);$('newClaim').value='';saveState();refreshAll();toast('Claim agregado.');window.UrbanoFirebase?.saveConfig().catch(()=>{})};$('addHoliday').onclick=()=>{const v=$('holidayDate').value;if(v&&!state.holidays.includes(v))state.holidays.push(v);$('holidayDate').value='';saveState();refreshAll();window.UrbanoFirebase?.saveConfig().catch(()=>{})};$('savePupDays').onclick=()=>{state.pupDays=Math.max(0,Number($('pupDays').value||0));saveState();toast('Regla PUP guardada.');window.UrbanoFirebase?.saveConfig().catch(()=>{})};$('exportBackup').onclick=backup;$('importBackup').onchange=e=>e.target.files[0]&&importBackup(e.target.files[0]);$('deleteOpen').onclick=()=>{if(confirm('¿Borrar todos los pedidos NO ENTREGADOS? Esta acción no se puede deshacer.')){state.orders=state.orders.filter(o=>deliveredState(o)==='ENTREGADO');selected.clear();saveState();refreshAll();toast('Pedidos abiertos eliminados.','warn')}};$('deleteAll').onclick=()=>{if(confirm('¿Borrar TODA la base local de Urbano?')){state=structuredClone(initialState);selected.clear();saveState();refreshAll();toast('Base local eliminada.','warn')}};
