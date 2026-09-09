@@ -236,8 +236,20 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 @media(max-width:700px){.socio-info-grid{grid-template-columns:1fr}}
 </style>
 
+
+<style id="socio-modal-final-fix">
+#socioModal{z-index:9998}
+.socio-modal-card{width:min(620px,94vw)}
+.socio-info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.socio-info-card{border:1px solid #E1E4E8;background:#FAFAFB;border-radius:12px;padding:16px}
+.socio-info-card label{display:block;font-size:10px;font-weight:900;color:#6B7280;text-transform:uppercase;margin-bottom:7px}
+.socio-info-card strong{display:block;font-size:16px;color:#111827;word-break:break-word}
+.socio-missing{grid-column:1/-1;padding:12px;border-radius:10px;background:#FFF4F4;color:#A71920;font-size:12px;font-weight:700}
+@media(max-width:700px){.socio-info-grid{grid-template-columns:1fr}}
+</style>
+
 </head>
-<body data-app-version="firebase-filterfix-v1">
+<body data-app-version="socio-modal-fix-v1">
 
 
 
@@ -373,10 +385,10 @@ function deliveredState(o){return o.deliveryDate?'ENTREGADO':'NO ENTREGADO'}
 function orderDays(o){return o&&o.deliveryDate?businessDays(o.guideDate,o.deliveryDate):null}
 function optionHtml(arr,selectedVal='',blank=''){return (blank!==null?`<option value="">${esc(blank)}</option>`:'')+arr.map(x=>`<option ${x===selectedVal?'selected':''}>${esc(x)}</option>`).join('')}
 function get(o,...keys){for(const k of keys){const nk=normKey(k);for(const [rk,rv] of Object.entries(o)){if(normKey(rk)===nk&&norm(rv)!=='')return rv}}return''}
-function headerScore(row,type=''){const keys=(row||[]).map(normKey);const sets={tc:['WAYBILL NUMBER','INVO NUMBER','SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE'],urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','NRO VISITAS'],oriflame:['NO GUIA','FECHA GUIA','COD DISTR','NOMBRE DESTINATARIO','NUMERO DE ORDEN']};const wanted=sets[type]||[];let score=0;wanted.forEach(w=>{if(keys.some(k=>k===w||k.includes(w)))score++});return score}
+function headerScore(row,type=''){const keys=(row||[]).map(normKey);const sets={tc:['WAYBILL NUMBER','WAYBILL_NUMBER','INVO NUMBER','INVO_NUMBER','SOCIO','CODIGO SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE'],urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','NRO VISITAS'],oriflame:['NO GUIA','FECHA GUIA','COD DISTR','NOMBRE DESTINATARIO','NUMERO DE ORDEN']};const wanted=sets[type]||[];let score=0;wanted.forEach(w=>{if(keys.some(k=>k===w||k.includes(w)))score++});return score}
 function rowsFromAOA(aoa,type=''){aoa=(aoa||[]).filter(r=>Array.isArray(r)&&r.some(v=>norm(v)!==''));if(!aoa.length)return[];let best=0,bestScore=-1;for(let i=0;i<Math.min(25,aoa.length);i++){const s=headerScore(aoa[i],type);if(s>bestScore){bestScore=s;best=i}}if(bestScore<=0)best=0;const headers=(aoa[best]||[]).map((h,i)=>norm(h)||`COL_${i+1}`);return aoa.slice(best+1).filter(r=>r.some(v=>norm(v)!=='')).map(vals=>{const obj={};headers.forEach((h,i)=>{let key=h;if(Object.prototype.hasOwnProperty.call(obj,key))key=`${key}_${i+1}`;obj[key]=vals[i]??''});return obj})}
 function parseDelimited(text,type=''){text=String(text||'').trim();if(!text)return[];const lines=text.split(/\r?\n/).filter(x=>x.trim()!=='');if(!lines.length)return[];const sample=lines.slice(0,8).join('\n');const delimiter=sample.includes('\t')?'\t':(sample.includes(';')?';':',');const parseLine=line=>{if(delimiter==='\t')return line.split('\t');let out=[],cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===delimiter&&!q){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out};return rowsFromAOA(lines.map(parseLine),type)}
-async function readFileRows(file,preferredSheet,type=''){if(!file)return[];if(window.XLSX){const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:false});const prefs=Array.isArray(preferredSheet)?preferredSheet:[preferredSheet];let name='';for(const p of prefs.filter(Boolean)){name=wb.SheetNames.find(n=>normKey(n)===normKey(p));if(name)break}if(!name&&type==='tc')name=wb.SheetNames.find(n=>['TCIII','TC III','TC','TOTAL CONTROL'].some(p=>normKey(n)===normKey(p)))||wb.SheetNames.find(n=>normKey(n).startsWith('TC'));if(!name&&type==='urbano')name=wb.SheetNames.find(n=>normKey(n).includes('URBANO DATA'));if(!name&&type==='oriflame')name=wb.SheetNames.find(n=>normKey(n)==='URBANO'||normKey(n).includes('BASE'));name=name||wb.SheetNames[0];const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:true});return rowsFromAOA(aoa,type)}const raw=await file.text();return parseDelimited(raw,type)}
+async function readFileRows(file,preferredSheet,type=''){if(!file)return[];if(window.XLSX){const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:false});const prefs=Array.isArray(preferredSheet)?preferredSheet:[preferredSheet];let name='';for(const p of prefs.filter(Boolean)){name=wb.SheetNames.find(n=>normKey(n)===normKey(p));if(name)break}if(!name&&type==='tc')name=wb.SheetNames.find(n=>['TCII','TC II','TCIII','TC III','TC','TOTAL CONTROL'].some(p=>normKey(n)===normKey(p)))||wb.SheetNames.find(n=>normKey(n).startsWith('TC'));if(!name&&type==='urbano')name=wb.SheetNames.find(n=>normKey(n).includes('URBANO DATA'));if(!name&&type==='oriflame')name=wb.SheetNames.find(n=>normKey(n)==='URBANO'||normKey(n).includes('BASE'));name=name||wb.SheetNames[0];const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:true});return rowsFromAOA(aoa,type)}const raw=await file.text();return parseDelimited(raw,type)}
 function sourceRows(type){const ta={oriflame:'pasteOriflame',urbano:'pasteUrbano',tc:'pasteTC'}[type];const txt=$(ta).value.trim();if(txt)return parseDelimited(txt,type);return staged[type]||[]}
 
 function addMonthsToSelect(){
@@ -430,7 +442,7 @@ function bindRowEvents(){
     o.claim=el.value; saveState(); renderDashboard();
     window.UrbanoFirebase?.saveOrder(o).catch(()=>{});
   });
-  $$('.view-socio').forEach(el=>el.onclick=e=>{e.stopPropagation();openSocioModal(el.dataset.guide)})
+  $$('.view-socio').forEach(el=>el.onclick=e=>{e.stopPropagation();openSocioModal(el.dataset.guide)});openSocioModal(el.dataset.guide)})
 }
 
 function processOriflame(){
@@ -538,31 +550,112 @@ function processUrbano(){
 
 function processTC(){
   const rows=sourceRows('tc');
-  if(!rows.length)return toast('No hay Total Control / TCIII para procesar.','warn');
+  if(!rows.length)return toast('No hay Total Control / TCII / TCIII para procesar.','warn');
+
   snapshotBeforeLoad();
-  const byGuide=new Map(state.orders.map(o=>[normGuide(o.guide),o]));
-  const byOrder=new Map(); state.orders.forEach(o=>{const k=normGuide(o.order);if(k)byOrder.set(k,o)});
+
+  const byGuide=new Map();
+  const byOrder=new Map();
+
+  state.orders.forEach(o=>{
+    const guideKey=normGuide(o.guide);
+    const orderKey=normGuide(o.order);
+    if(guideKey)byGuide.set(guideKey,o);
+    if(orderKey)byOrder.set(orderKey,o);
+  });
+
   const touched=new Set();
-  let matched=0,byGuideCount=0,byOrderCount=0,notFound=0;
+  let matched=0,byGuideCount=0,byOrderCount=0,notFound=0,agencyMatched=0;
+
   for(const r of rows){
-    const g=normGuide(get(r,'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','NO GUIA','GUIA','AWB'));
-    const inv=normGuide(get(r,'INVO_NUMBER','INVO NUMBER','NUMERO DE ORDEN','NÚMERO DE ORDEN','ORDER_NUMBER','ORDER NUMBER'));
+    const g=normGuide(get(
+      r,
+      'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL',
+      'NO GUIA','NO. GUIA','NRO GUIA','NUMERO GUIA','NÚMERO GUIA',
+      'GUIA','GUÍA','AWB'
+    ));
+
+    const inv=normGuide(get(
+      r,
+      'INVO_NUMBER','INVO NUMBER',
+      'NUMERO DE ORDEN','NÚMERO DE ORDEN',
+      'ORDER_NUMBER','ORDER NUMBER',
+      'FACTURA','NUMERO FACTURA','NÚMERO FACTURA'
+    ));
+
+    // Primary match is ALWAYS guide.
     let o=g?byGuide.get(g):null;
     if(o)byGuideCount++;
-    if(!o&&inv){o=byOrder.get(inv);if(o)byOrderCount++}
-    if(!o){notFound++;continue}
+
+    // Fallback by order/invoice for legacy rows.
+    if(!o&&inv){
+      o=byOrder.get(inv);
+      if(o)byOrderCount++;
+    }
+
+    if(!o){
+      notFound++;
+      continue;
+    }
+
     matched++;
-    const socio=norm(get(r,'SOCIO','CODIGO SOCIO','CÓDIGO SOCIO','COD SOCIO','CODIGO','CÓDIGO'));
-    const name=norm(get(r,'NOMBRE_SOCIO','NOMBRE SOCIO','NOMBRE_CLIENTE','NOMBRE CLIENTE','SOCIO NOMBRE','NOMBRE'));
-    const ref=norm(get(r,'REFERENCIAS','REFERENCIA'));
-    const phone=norm(get(r,'TELEFONO_SOCIO','TELEFONO SOCIO','TELÉFONO SOCIO','CELULAR','CELULAR SOCIO','TELEFONO_CLIENTE','TELEFONO CLIENTE','TELEFONO','TELÉFONO'));
-    if(socio)o.socio=socio;if(name)o.memberName=name;if(ref)o.reference=ref;if(phone)o.phone=phone;
-    const m=monthKey(o.guideDate); if(m)touched.add(m);
+
+    const socio=norm(get(
+      r,
+      'SOCIO',
+      'CODIGO SOCIO','CÓDIGO SOCIO','COD SOCIO',
+      'CODIGO','CÓDIGO',
+      'MEMBER NUMBER','MEMBER_NUMBER'
+    ));
+
+    const name=norm(get(
+      r,
+      'NOMBRE_SOCIO','NOMBRE SOCIO',
+      'NOMBRE_CLIENTE','NOMBRE CLIENTE',
+      'SOCIO NOMBRE','NOMBRE',
+      'MEMBER NAME','MEMBER_NAME'
+    ));
+
+    const phone=norm(get(
+      r,
+      'TELEFONO_SOCIO','TELEFONO SOCIO','TELÉFONO SOCIO',
+      'CELULAR','CELULAR SOCIO',
+      'TELEFONO_CLIENTE','TELEFONO CLIENTE',
+      'TELEFONO','TELÉFONO',
+      'PHONE','MOBILE'
+    ));
+
+    const ref=norm(get(
+      r,
+      'REFERENCIAS','REFERENCIA',
+      'REFERENCE','REFERENCES'
+    ));
+
+    // Enriquecer siempre que TC tenga valor.
+    if(socio)o.socio=socio;
+    if(name)o.memberName=name;
+    if(phone)o.phone=phone;
+    if(ref)o.reference=ref;
+
+    const codDistNum=Number(String(o.codDist||'').replace(/\.0$/,'').trim());
+    if(Number.isFinite(codDistNum)&&codDistNum>=9000&&codDistNum<=9100){
+      agencyMatched++;
+    }
+
+    const m=monthKey(o.guideDate);
+    if(m)touched.add(m);
   }
-  state.lastLoads.tc=new Date().toISOString(); saveState();
-  staged.tc=null; $('pasteTC').value=''; $('fileTC').value='';
-  toast(`TC/TCIII: ${matched} coincidencias (${byGuideCount} por guía · ${byOrderCount} por orden) · ${notFound} sin cruce.`);
+
+  state.lastLoads.tc=new Date().toISOString();
+  saveState();
+
+  staged.tc=null;
+  $('pasteTC').value='';
+  $('fileTC').value='';
+
+  toast(`TCII/TCIII: ${matched} coincidencias · ${agencyMatched} agencias enriquecidas · ${notFound} sin cruce.`);
   refreshAll();
+
   window.UrbanoFirebase?.syncMonths([...touched]).catch(()=>{});
 }
 function openModal(guide){const o=state.orders.find(x=>x.guide===guide);if(!o)return;modalGuide=guide;$('modalTitle').textContent=`Gestión · ${o.guide}`;$('modalManagement').value=o.management||'';$('orderModal').classList.add('show')}
@@ -582,16 +675,26 @@ function openSocioModal(guide){
   const codigo=norm(o.socio)||'-';
   const nombre=norm(o.memberName)||'-';
   const celular=norm(o.phone)||norm(o.phone1)||norm(o.phone2)||'-';
+  const faltan=[codigo,nombre,celular].every(v=>v==='-');
 
-  $('socioModalTitle').textContent=`Datos del socio · ${o.guide}`;
-  $('socioModalBody').innerHTML=`
+  const title=$('socioModalTitle');
+  const body=$('socioModalBody');
+  const modal=$('socioModal');
+  if(!title||!body||!modal){
+    console.error('Modal socio no encontrado en DOM');
+    return;
+  }
+
+  title.textContent=`Datos del socio · ${o.guide}`;
+  body.innerHTML=`
     <div class="socio-info-grid">
       <div class="socio-info-card"><label>Código</label><strong>${esc(codigo)}</strong></div>
       <div class="socio-info-card"><label>Nombre</label><strong>${esc(nombre)}</strong></div>
       <div class="socio-info-card"><label>Celular</label><strong>${esc(celular)}</strong></div>
+      ${faltan?'<div class="socio-missing">Aún no hay datos de TCII asociados a esta guía.</div>':''}
     </div>
   `;
-  $('socioModal').classList.add('show');
+  modal.classList.add('show');
 }
 function closeSocioModal(){$('socioModal').classList.remove('show');socioGuide=null}
 function copySocioData(){const o=state.orders.find(x=>x.guide===socioGuide);if(!o)return;const txt=`Guía: ${o.guide}\nSocio: ${o.socio||'-'}\nNombre: ${o.memberName||o.recipient||'-'}\nCelular: ${o.phone||o.phone1||'-'}\nDirección: ${o.address||'-'}\nReferencia: ${o.reference||'-'}`;navigator.clipboard?.writeText(txt).then(()=>toast('Datos del socio copiados.'))}
@@ -675,7 +778,7 @@ $$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('a
 ['fDate','fChannel','fDelivered','fStatus','fClaim','fVisits'].forEach(id=>$(id).onchange=renderOrders);
 $('fMonth').onchange=()=>{const m=$('fMonth').value;if(window.UrbanoFirebase){window.UrbanoFirebase.ensureSelection(m).then(()=>renderOrders()).catch(()=>renderOrders())}else renderOrders()};$('fSearch').oninput=renderOrders;$('qPending').onclick=()=>{pendingFirst=!pendingFirst;$('qPending').classList.toggle('active',pendingFirst);renderOrders()};$('qUngestioned').onclick=()=>{onlyUngestioned=!onlyUngestioned;$('qUngestioned').classList.toggle('active',onlyUngestioned);renderOrders()};$('clearFilters').onclick=()=>{['fMonth','fDate','fChannel','fDelivered','fStatus','fClaim','fVisits','fSearch'].forEach(id=>$(id).value='');pendingFirst=false;onlyUngestioned=false;$('qPending').classList.remove('active');$('qUngestioned').classList.remove('active');renderOrders()};$('copyPending').onclick=()=>{const gs=filteredOrders().filter(o=>deliveredState(o)==='NO ENTREGADO').map(o=>o.guide);navigator.clipboard?.writeText(gs.join('\n')).then(()=>toast(`${gs.length} guías pendientes copiadas.`))};$('exportOrders').onclick=exportOrders;$$('th.sortable').forEach(th=>th.onclick=()=>{const key=th.dataset.sort;if(sortState.key===key)sortState.dir=sortState.dir==='asc'?'desc':'asc';else sortState={key,dir:'asc'};renderOrders()});const FILTER_COLLAPSE_KEY='urbano_filters_collapsed';const setFilterPanel=collapsed=>{$('filterPanel').classList.toggle('collapsed',collapsed);$('toggleFilters').textContent=collapsed?'▸ Filtros':'▾ Filtros';localStorage.setItem(FILTER_COLLAPSE_KEY,collapsed?'1':'0');setTimeout(syncTableScrollbar,240)};$('toggleFilters').onclick=()=>setFilterPanel(!$('filterPanel').classList.contains('collapsed'));setFilterPanel(localStorage.getItem(FILTER_COLLAPSE_KEY)==='1');
 // Files & process
-$('fileOriflame').onchange=e=>stageFile('oriflame',e.target.files[0],'URBANO','lastOriflame');$('fileUrbano').onchange=e=>stageFile('urbano',e.target.files[0],'URBANO DATA','lastUrbano');$('fileTC').onchange=e=>stageFile('tc',e.target.files[0],['TCIII','TC III','TC','TOTAL CONTROL'],'lastTC');$('processOriflame').onclick=processOriflame;$('processUrbano').onclick=processUrbano;$('processTC').onclick=processTC;$('undoLastLoad').onclick=undoLastLoad;
+$('fileOriflame').onchange=e=>stageFile('oriflame',e.target.files[0],'URBANO','lastOriflame');$('fileUrbano').onchange=e=>stageFile('urbano',e.target.files[0],'URBANO DATA','lastUrbano');$('fileTC').onchange=e=>stageFile('tc',e.target.files[0],['TCII','TC II','TCIII','TC III','TC','TOTAL CONTROL'],'lastTC');$('processOriflame').onclick=processOriflame;$('processUrbano').onclick=processUrbano;$('processTC').onclick=processTC;$('undoLastLoad').onclick=undoLastLoad;
 // Modal
 $('modalClose').onclick=closeModal;$('modalCancel').onclick=closeModal;$('modalSave').onclick=saveModal;$('orderModal').onclick=e=>{if(e.target===$('orderModal'))closeModal()};$('socioModalClose').onclick=closeSocioModal;$('socioModalOk').onclick=closeSocioModal;$('copySocioData').onclick=copySocioData;$('socioModal').onclick=e=>{if(e.target===$('socioModal'))closeSocioModal()};$('openDailyOrdersChart').onclick=openDailyOrdersChart;$('dailyChartClose').onclick=closeDailyOrdersChart;$('dailyChartModal').onclick=e=>{if(e.target===$('dailyChartModal'))closeDailyOrdersChart()};
 // Settings
