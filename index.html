@@ -236,20 +236,8 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 @media(max-width:700px){.socio-info-grid{grid-template-columns:1fr}}
 </style>
 
-
-<style id="socio-modal-final-fix">
-#socioModal{z-index:9998}
-.socio-modal-card{width:min(620px,94vw)}
-.socio-info-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-.socio-info-card{border:1px solid #E1E4E8;background:#FAFAFB;border-radius:12px;padding:16px}
-.socio-info-card label{display:block;font-size:10px;font-weight:900;color:#6B7280;text-transform:uppercase;margin-bottom:7px}
-.socio-info-card strong{display:block;font-size:16px;color:#111827;word-break:break-word}
-.socio-missing{grid-column:1/-1;padding:12px;border-radius:10px;background:#FFF4F4;color:#A71920;font-size:12px;font-weight:700}
-@media(max-width:700px){.socio-info-grid{grid-template-columns:1fr}}
-</style>
-
 </head>
-<body data-app-version="socio-modal-fix-v1">
+<body data-app-version="socio-estable-v1">
 
 
 
@@ -343,7 +331,7 @@ const DEFAULT_CLAIMS=[
 'DIRECCION INCORRECTA','CELULAR INCORRECTO','CAMBIO A PUP','FUERA DE COBERTURA','CAMBIO DE DIRECCIÓN','ZONA PELIGROSA','CLIENTE NO RETIRA','DEVOLUCION AL REMITENTE','CLIENTE NO DESEA RECIBIR','DIRECCION INSUFICIENTE','CLIENTE NO CONTESTA','TRAYECTO ESPECIAL','NO HAY QUIEN RECIBA','NOVEDAD URBANO','EXTRAVIADO-ROBADO','REMPLAZO DE GUIA URBANO','FERIADO NACIONAL','CIERRES DE VIAS','BLOQUEOS DE VIAS','CLIENTE DE VACACIONES','TOQUE DE QUEDA'
 ];
 const initialState={orders:[],claims:DEFAULT_CLAIMS,responsibles:[],defaultResponsible:'',holidays:[],pupDays:1,closedMonths:[],lastLoads:{oriflame:'',urbano:'',tc:''}};
-let state=loadState(); let selected=new Set(); let modalGuide=null; let sortState={key:'guideDate',dir:'desc'}; let pendingFirst=false; let onlyUngestioned=false; let staged={oriflame:null,urbano:null,tc:null};
+let state=loadState(); let selected=new Set(); let modalGuide=null; let socioGuide=null; let sortState={key:'guideDate',dir:'desc'}; let pendingFirst=false; let onlyUngestioned=false; let staged={oriflame:null,urbano:null,tc:null};
 const $=id=>document.getElementById(id); const $$=sel=>Array.from(document.querySelectorAll(sel));
 function loadState(){try{const x=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');return {...structuredClone(initialState),...(x||{}),lastLoads:{...initialState.lastLoads,...((x||{}).lastLoads||{})}}}catch(e){return structuredClone(initialState)}}
 function saveState(){
@@ -385,7 +373,7 @@ function deliveredState(o){return o.deliveryDate?'ENTREGADO':'NO ENTREGADO'}
 function orderDays(o){return o&&o.deliveryDate?businessDays(o.guideDate,o.deliveryDate):null}
 function optionHtml(arr,selectedVal='',blank=''){return (blank!==null?`<option value="">${esc(blank)}</option>`:'')+arr.map(x=>`<option ${x===selectedVal?'selected':''}>${esc(x)}</option>`).join('')}
 function get(o,...keys){for(const k of keys){const nk=normKey(k);for(const [rk,rv] of Object.entries(o)){if(normKey(rk)===nk&&norm(rv)!=='')return rv}}return''}
-function headerScore(row,type=''){const keys=(row||[]).map(normKey);const sets={tc:['WAYBILL NUMBER','WAYBILL_NUMBER','INVO NUMBER','INVO_NUMBER','SOCIO','CODIGO SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE'],urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','NRO VISITAS'],oriflame:['NO GUIA','FECHA GUIA','COD DISTR','NOMBRE DESTINATARIO','NUMERO DE ORDEN']};const wanted=sets[type]||[];let score=0;wanted.forEach(w=>{if(keys.some(k=>k===w||k.includes(w)))score++});return score}
+function headerScore(row,type=''){const keys=(row||[]).map(normKey);const sets={tc:['WAYBILL NUMBER','INVO NUMBER','SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE'],urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','NRO VISITAS'],oriflame:['NO GUIA','FECHA GUIA','COD DISTR','NOMBRE DESTINATARIO','NUMERO DE ORDEN']};const wanted=sets[type]||[];let score=0;wanted.forEach(w=>{if(keys.some(k=>k===w||k.includes(w)))score++});return score}
 function rowsFromAOA(aoa,type=''){aoa=(aoa||[]).filter(r=>Array.isArray(r)&&r.some(v=>norm(v)!==''));if(!aoa.length)return[];let best=0,bestScore=-1;for(let i=0;i<Math.min(25,aoa.length);i++){const s=headerScore(aoa[i],type);if(s>bestScore){bestScore=s;best=i}}if(bestScore<=0)best=0;const headers=(aoa[best]||[]).map((h,i)=>norm(h)||`COL_${i+1}`);return aoa.slice(best+1).filter(r=>r.some(v=>norm(v)!=='')).map(vals=>{const obj={};headers.forEach((h,i)=>{let key=h;if(Object.prototype.hasOwnProperty.call(obj,key))key=`${key}_${i+1}`;obj[key]=vals[i]??''});return obj})}
 function parseDelimited(text,type=''){text=String(text||'').trim();if(!text)return[];const lines=text.split(/\r?\n/).filter(x=>x.trim()!=='');if(!lines.length)return[];const sample=lines.slice(0,8).join('\n');const delimiter=sample.includes('\t')?'\t':(sample.includes(';')?';':',');const parseLine=line=>{if(delimiter==='\t')return line.split('\t');let out=[],cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===delimiter&&!q){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out};return rowsFromAOA(lines.map(parseLine),type)}
 async function readFileRows(file,preferredSheet,type=''){if(!file)return[];if(window.XLSX){const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:false});const prefs=Array.isArray(preferredSheet)?preferredSheet:[preferredSheet];let name='';for(const p of prefs.filter(Boolean)){name=wb.SheetNames.find(n=>normKey(n)===normKey(p));if(name)break}if(!name&&type==='tc')name=wb.SheetNames.find(n=>['TCII','TC II','TCIII','TC III','TC','TOTAL CONTROL'].some(p=>normKey(n)===normKey(p)))||wb.SheetNames.find(n=>normKey(n).startsWith('TC'));if(!name&&type==='urbano')name=wb.SheetNames.find(n=>normKey(n).includes('URBANO DATA'));if(!name&&type==='oriflame')name=wb.SheetNames.find(n=>normKey(n)==='URBANO'||normKey(n).includes('BASE'));name=name||wb.SheetNames[0];const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:true});return rowsFromAOA(aoa,type)}const raw=await file.text();return parseDelimited(raw,type)}
@@ -442,7 +430,7 @@ function bindRowEvents(){
     o.claim=el.value; saveState(); renderDashboard();
     window.UrbanoFirebase?.saveOrder(o).catch(()=>{});
   });
-  $$('.view-socio').forEach(el=>el.onclick=e=>{e.stopPropagation();openSocioModal(el.dataset.guide)});openSocioModal(el.dataset.guide)})
+  $$('.view-socio').forEach(el=>el.onclick=e=>{e.stopPropagation();openSocioModal(el.dataset.guide)})
 }
 
 function processOriflame(){
@@ -556,26 +544,25 @@ function processTC(){
 
   const byGuide=new Map();
   const byOrder=new Map();
-
   state.orders.forEach(o=>{
-    const guideKey=normGuide(o.guide);
-    const orderKey=normGuide(o.order);
-    if(guideKey)byGuide.set(guideKey,o);
-    if(orderKey)byOrder.set(orderKey,o);
+    const g=normGuide(o.guide);
+    const ord=normGuide(o.order);
+    if(g)byGuide.set(g,o);
+    if(ord)byOrder.set(ord,o);
   });
 
   const touched=new Set();
-  let matched=0,byGuideCount=0,byOrderCount=0,notFound=0,agencyMatched=0;
+  let matched=0, agencyMatched=0, notFound=0;
 
   for(const r of rows){
-    const g=normGuide(get(
+    const guide=normGuide(get(
       r,
       'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL',
       'NO GUIA','NO. GUIA','NRO GUIA','NUMERO GUIA','NÚMERO GUIA',
       'GUIA','GUÍA','AWB'
     ));
 
-    const inv=normGuide(get(
+    const invoice=normGuide(get(
       r,
       'INVO_NUMBER','INVO NUMBER',
       'NUMERO DE ORDEN','NÚMERO DE ORDEN',
@@ -583,15 +570,8 @@ function processTC(){
       'FACTURA','NUMERO FACTURA','NÚMERO FACTURA'
     ));
 
-    // Primary match is ALWAYS guide.
-    let o=g?byGuide.get(g):null;
-    if(o)byGuideCount++;
-
-    // Fallback by order/invoice for legacy rows.
-    if(!o&&inv){
-      o=byOrder.get(inv);
-      if(o)byOrderCount++;
-    }
+    let o=guide?byGuide.get(guide):null;
+    if(!o&&invoice)o=byOrder.get(invoice);
 
     if(!o){
       notFound++;
@@ -602,10 +582,8 @@ function processTC(){
 
     const socio=norm(get(
       r,
-      'SOCIO',
-      'CODIGO SOCIO','CÓDIGO SOCIO','COD SOCIO',
-      'CODIGO','CÓDIGO',
-      'MEMBER NUMBER','MEMBER_NUMBER'
+      'SOCIO','CODIGO SOCIO','CÓDIGO SOCIO','COD SOCIO',
+      'CODIGO','CÓDIGO','MEMBER NUMBER','MEMBER_NUMBER'
     ));
 
     const name=norm(get(
@@ -621,26 +599,18 @@ function processTC(){
       'TELEFONO_SOCIO','TELEFONO SOCIO','TELÉFONO SOCIO',
       'CELULAR','CELULAR SOCIO',
       'TELEFONO_CLIENTE','TELEFONO CLIENTE',
-      'TELEFONO','TELÉFONO',
-      'PHONE','MOBILE'
+      'TELEFONO','TELÉFONO','PHONE','MOBILE'
     ));
 
-    const ref=norm(get(
-      r,
-      'REFERENCIAS','REFERENCIA',
-      'REFERENCE','REFERENCES'
-    ));
+    const ref=norm(get(r,'REFERENCIAS','REFERENCIA','REFERENCE','REFERENCES'));
 
-    // Enriquecer siempre que TC tenga valor.
     if(socio)o.socio=socio;
     if(name)o.memberName=name;
     if(phone)o.phone=phone;
     if(ref)o.reference=ref;
 
-    const codDistNum=Number(String(o.codDist||'').replace(/\.0$/,'').trim());
-    if(Number.isFinite(codDistNum)&&codDistNum>=9000&&codDistNum<=9100){
-      agencyMatched++;
-    }
+    const cod=Number(String(o.codDist||'').replace(/\.0$/,'').trim());
+    if(Number.isFinite(cod)&&cod>=9000&&cod<=9100)agencyMatched++;
 
     const m=monthKey(o.guideDate);
     if(m)touched.add(m);
@@ -672,32 +642,28 @@ function openSocioModal(guide){
   const o=state.orders.find(x=>x.guide===guide);
   if(!o)return;
 
+  socioGuide=guide;
+
   const codigo=norm(o.socio)||'-';
   const nombre=norm(o.memberName)||'-';
   const celular=norm(o.phone)||norm(o.phone1)||norm(o.phone2)||'-';
-  const faltan=[codigo,nombre,celular].every(v=>v==='-');
 
-  const title=$('socioModalTitle');
-  const body=$('socioModalBody');
-  const modal=$('socioModal');
-  if(!title||!body||!modal){
-    console.error('Modal socio no encontrado en DOM');
-    return;
-  }
-
-  title.textContent=`Datos del socio · ${o.guide}`;
-  body.innerHTML=`
-    <div class="socio-info-grid">
-      <div class="socio-info-card"><label>Código</label><strong>${esc(codigo)}</strong></div>
-      <div class="socio-info-card"><label>Nombre</label><strong>${esc(nombre)}</strong></div>
-      <div class="socio-info-card"><label>Celular</label><strong>${esc(celular)}</strong></div>
-      ${faltan?'<div class="socio-missing">Aún no hay datos de TCII asociados a esta guía.</div>':''}
-    </div>
+  $('socioModalTitle').textContent=`Datos del socio · ${o.guide}`;
+  $('socioDetails').innerHTML=`
+    <div class="socio-item"><label>Código</label><div>${esc(codigo)}</div></div>
+    <div class="socio-item"><label>Nombre</label><div>${esc(nombre)}</div></div>
+    <div class="socio-item"><label>Celular</label><div>${esc(celular)}</div></div>
   `;
-  modal.classList.add('show');
+
+  $('socioModal').classList.add('show');
 }
 function closeSocioModal(){$('socioModal').classList.remove('show');socioGuide=null}
-function copySocioData(){const o=state.orders.find(x=>x.guide===socioGuide);if(!o)return;const txt=`Guía: ${o.guide}\nSocio: ${o.socio||'-'}\nNombre: ${o.memberName||o.recipient||'-'}\nCelular: ${o.phone||o.phone1||'-'}\nDirección: ${o.address||'-'}\nReferencia: ${o.reference||'-'}`;navigator.clipboard?.writeText(txt).then(()=>toast('Datos del socio copiados.'))}
+function copySocioData(){
+  const o=state.orders.find(x=>x.guide===socioGuide);
+  if(!o)return;
+  const txt=`Código: ${o.socio||'-'}\nNombre: ${o.memberName||'-'}\nCelular: ${o.phone||o.phone1||o.phone2||'-'}`;
+  navigator.clipboard?.writeText(txt).then(()=>toast('Datos del socio copiados.'));
+}
 function dailyReceivedSeries(){const m=$('dashMonth').value;const arr=state.orders.filter(o=>!m||monthKey(o.guideDate)===m);const g={};arr.forEach(o=>{const k=isoDate(o.guideDate);if(!k)return;g[k]=(g[k]||0)+1});return Object.entries(g).sort((a,b)=>a[0].localeCompare(b[0]))}
 function buildLineChartSvg(series){const width=920,height=360,pad={t:30,r:28,b:52,l:46};const plotW=width-pad.l-pad.r,plotH=height-pad.t-pad.b;const max=Math.max(...series.map(x=>x[1]),1);const min=0;const yTicks=5;const x=i=>pad.l+(series.length===1?plotW/2:(plotW/(series.length-1))*i);const y=v=>pad.t+plotH-((v-min)/(max-min||1))*plotH;let svg=`<div class="line-wrap"><svg viewBox="0 0 ${width} ${height}" class="line-chart-svg" role="img" aria-label="Gráfico lineal de pedidos recibidos por día">`;for(let i=0;i<=yTicks;i++){const val=min+((max-min)/yTicks)*i;const yy=pad.t+plotH-(plotH/yTicks)*i;svg+=`<line x1="${pad.l}" y1="${yy}" x2="${width-pad.r}" y2="${yy}" class="line-grid"></line><text x="${pad.l-10}" y="${yy+4}" text-anchor="end" class="line-ylabel">${Math.round(val)}</text>`}svg+=`<line x1="${pad.l}" y1="${pad.t+plotH}" x2="${width-pad.r}" y2="${pad.t+plotH}" class="line-axis"></line><line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t+plotH}" class="line-axis"></line>`;const pts=series.map((row,i)=>`${x(i)},${y(row[1])}`).join(' ');svg+=`<polyline points="${pts}" class="line-path"></polyline>`;series.forEach((row,i)=>{const xx=x(i),yy=y(row[1]),lbl=fmtDate(row[0]).slice(0,5);svg+=`<circle cx="${xx}" cy="${yy}" r="5" class="line-point"></circle><text x="${xx}" y="${yy-14}" text-anchor="middle" class="line-label">${row[1]}</text><text x="${xx}" y="${height-18}" text-anchor="middle" class="line-xlabel">${lbl}</text>`});svg+='</svg></div>';return svg}
 function openDailyOrdersChart(){const series=dailyReceivedSeries();$('dailyChartTitle').textContent='Pedidos cargados por día · FECHA GUIA';if(!series.length){$('dailyChartSummary').innerHTML='';$('dailyChartBody').innerHTML='<div class="empty" style="padding:34px 0">Sin información</div>';$('dailyChartModal').classList.add('show');return}const total=series.reduce((a,[,n])=>a+n,0);const maxRow=series.reduce((a,b)=>a[1]>=b[1]?a:b);$('dailyChartSummary').innerHTML=`<div class="mini-stat">${series.length} días con carga</div><div class="mini-stat">${total} pedidos del período</div><div class="mini-stat">Pico: ${maxRow[1]} pedidos · ${fmtDate(maxRow[0])}</div>`;$('dailyChartBody').innerHTML=buildLineChartSvg(series);$('dailyChartModal').classList.add('show')}
