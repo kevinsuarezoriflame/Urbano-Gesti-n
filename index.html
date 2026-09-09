@@ -237,7 +237,7 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 </style>
 
 </head>
-<body data-app-version="firebase-standard-v1">
+<body data-app-version="firebase-filterfix-v1">
 
 
 
@@ -266,14 +266,14 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
         <div class="quickbar"><div class="quick-left"><button class="btn small filter-toggle" id="toggleFilters">▾ Filtros</button><button class="chip" id="qPending">↑ Pendientes primero</button><button class="chip" id="qUngestioned">Solo sin gestión</button><button class="btn small" id="copyPending">📋 Copiar guías pendientes</button><button class="btn small" id="clearFilters">Limpiar</button></div><div class="quick-right"><span class="summary-mini" id="visibleCount">0 pedidos</span></div></div>
         <div class="card filter-panel" id="filterPanel">
           <div class="filters">
-            <div class="field"><label>Mes</label><select class="select" id="fMonth"></select></div>
-            <div class="field"><label>Fecha guía</label><input class="input" type="date" id="fDate"></div>
-            <div class="field"><label>Canal</label><select class="select" id="fChannel"><option value="">Todos</option><option>HD</option><option>PUP</option><option>SPO</option></select></div>
-            <div class="field"><label>Estado</label><select class="select" id="fDelivered"><option value="">Todos</option><option value="ENTREGADO">Entregados</option><option value="NO ENTREGADO">No entregados</option></select></div>
-            <div class="field"><label>Status Urbano</label><select class="select" id="fStatus"><option value="">Todos</option></select></div>
-            <div class="field"><label>Clasificación / Claims</label><select class="select" id="fClaim"><option value="">Todas</option></select></div>
-            <div class="field"><label>Visitas</label><select class="select" id="fVisits"><option value="">Todas</option><option value="0">0 visitas</option><option value="1">1 visita</option><option value="2">2 visitas</option><option value="3+">3+ visitas</option></select></div>
-            <div class="field search-span"><label>Buscar</label><input class="input" id="fSearch" placeholder="Guía, WYB, código, orden, socio, nombre, celular, dirección..."></div>
+            <div class="field"><label>Mes</label><select class="select" id="fMonth" autocomplete="off"></select></div>
+            <div class="field"><label>Fecha guía</label><input class="input" type="date" id="fDate" autocomplete="off"></div>
+            <div class="field"><label>Canal</label><select class="select" id="fChannel" autocomplete="off"><option value="">Todos</option><option>HD</option><option>PUP</option><option>SPO</option></select></div>
+            <div class="field"><label>Estado</label><select class="select" id="fDelivered" autocomplete="off"><option value="">Todos</option><option value="ENTREGADO">Entregados</option><option value="NO ENTREGADO">No entregados</option></select></div>
+            <div class="field"><label>Status Urbano</label><select class="select" id="fStatus" autocomplete="off"><option value="">Todos</option></select></div>
+            <div class="field"><label>Clasificación / Claims</label><select class="select" id="fClaim" autocomplete="off"><option value="">Todas</option></select></div>
+            <div class="field"><label>Visitas</label><select class="select" id="fVisits" autocomplete="off"><option value="">Todas</option><option value="0">0 visitas</option><option value="1">1 visita</option><option value="2">2 visitas</option><option value="3+">3+ visitas</option></select></div>
+            <div class="field search-span"><label>Buscar</label><input class="input" id="fSearch" autocomplete="off" placeholder="Guía, WYB, código, orden, socio, nombre, celular, dirección..."></div>
           </div>
         </div>
         <div class="card table-card"><div class="table-shell"><div class="table-scroll" id="tableScroll"><table class="data-table" id="ordersTable"><thead><tr>
@@ -334,9 +334,22 @@ const initialState={orders:[],claims:DEFAULT_CLAIMS,responsibles:[],defaultRespo
 let state=loadState(); let selected=new Set(); let modalGuide=null; let sortState={key:'guideDate',dir:'desc'}; let pendingFirst=false; let onlyUngestioned=false; let staged={oriflame:null,urbano:null,tc:null};
 const $=id=>document.getElementById(id); const $$=sel=>Array.from(document.querySelectorAll(sel));
 function loadState(){try{const x=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');return {...structuredClone(initialState),...(x||{}),lastLoads:{...initialState.lastLoads,...((x||{}).lastLoads||{})}}}catch(e){return structuredClone(initialState)}}
-function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); refreshStorageInfo();}
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+    window.__urbanoLocalStorageOK=true;
+  }catch(e){
+    window.__urbanoLocalStorageOK=false;
+    console.warn('No se pudo guardar la copia local completa.',e);
+    try{
+      const slim={...state,orders:[]};
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(slim));
+    }catch(_){}
+  }
+  try{refreshStorageInfo()}catch(_){}
+}
 const UNDO_KEY='urbano_oriflame_undo_v1';
-function snapshotBeforeLoad(){try{localStorage.setItem(UNDO_KEY,JSON.stringify(state))}catch(e){}}
+function snapshotBeforeLoad(){try{localStorage.setItem(UNDO_KEY,JSON.stringify(state))}catch(e){console.warn('Sin espacio para respaldo local de deshacer.',e)}}
 function undoLastLoad(){try{const raw=localStorage.getItem(UNDO_KEY);if(!raw)return toast('No hay una carga anterior para deshacer.','warn');const prev=JSON.parse(raw);if(!prev||!Array.isArray(prev.orders))throw Error();state={...structuredClone(initialState),...prev,lastLoads:{...initialState.lastLoads,...(prev.lastLoads||{})}};saveState();localStorage.removeItem(UNDO_KEY);toast('Última carga deshecha.');refreshAll();window.UrbanoFirebase?.syncMonths(window.UrbanoApp?.getLoadedMonths?.()||[]).catch(()=>{})}catch(e){toast('No pude recuperar la carga anterior.','bad')}}
 
 function toast(msg,type='ok'){const el=document.createElement('div');el.className='toast '+type;el.textContent=msg;$('toasts').appendChild(el);setTimeout(()=>el.remove(),3200)}
@@ -380,6 +393,28 @@ function addMonthsToSelect(){
   return months
 }
 function refreshFilterOptions(){const statusEl=$('fStatus'),claimEl=$('fClaim');const keepStatus=statusEl.value,keepClaim=claimEl.value;const statuses=[...new Set(state.orders.map(o=>normalizeStatus(o.status)).filter(Boolean))].sort();statusEl.innerHTML='<option value="">Todos</option>'+statuses.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');claimEl.innerHTML='<option value="">Todas</option>'+state.claims.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');if(statuses.includes(keepStatus))statusEl.value=keepStatus;if(state.claims.includes(keepClaim))claimEl.value=keepClaim}
+
+function resetOperationalFilters(){
+  const defaults={
+    fMonth:'',
+    fDate:'',
+    fChannel:'',
+    fDelivered:'',
+    fStatus:'',
+    fClaim:'',
+    fVisits:'',
+    fSearch:''
+  };
+  for(const [id,val] of Object.entries(defaults)){
+    const el=$(id);
+    if(el)el.value=val;
+  }
+  pendingFirst=false;
+  onlyUngestioned=false;
+  $('qPending')?.classList.remove('active');
+  $('qUngestioned')?.classList.remove('active');
+}
+
 function filteredOrders(){const month=$('fMonth').value,date=$('fDate').value,channel=$('fChannel').value,del=$('fDelivered').value,status=$('fStatus').value,claim=$('fClaim').value,vis=$('fVisits').value;const qTokens=normKey($('fSearch').value).split(' ').filter(Boolean);let arr=state.orders.filter(o=>{if(month&&monthKey(o.guideDate)!==month)return false;if(date&&isoDate(o.guideDate)!==date)return false;if(channel&&o.channel!==channel)return false;if(del&&deliveredState(o)!==del)return false;if(status&&normalizeStatus(o.status)!==status)return false;if(claim&&o.claim!==claim)return false;const vv=Number(o.visits||0);if(vis==='0'&&vv!==0)return false;if(vis==='1'&&vv!==1)return false;if(vis==='2'&&vv!==2)return false;if(vis==='3+'&&vv<3)return false;if(onlyUngestioned&&norm(o.management))return false;if(qTokens.length){const hay=normKey([o.guide,o.wyb,o.codDist,o.order,o.socio,o.memberName,o.recipient,o.phone,o.phone1,o.phone2,o.address,o.reference,o.barrio,o.city,o.province,o.channel,o.status,o.management,o.claim].join(' '));if(!qTokens.every(t=>hay.includes(t)))return false}return true});const key=sortState.key;arr.sort((a,b)=>{if(pendingFirst){const pa=deliveredState(a)==='NO ENTREGADO'?0:1,pb=deliveredState(b)==='NO ENTREGADO'?0:1;if(pa!==pb)return pa-pb}let va=key==='days'?(orderDays(a)??9999):(key==='deliveredState'?deliveredState(a):a[key]);let vb=key==='days'?(orderDays(b)??9999):(key==='deliveredState'?deliveredState(b):b[key]);if(key.toLowerCase().includes('date')){va=parseDate(va)?.getTime()||0;vb=parseDate(vb)?.getTime()||0}else if(key==='visits'||key==='days'){va=Number(va||0);vb=Number(vb||0)}else{va=norm(va).toUpperCase();vb=norm(vb).toUpperCase()}return (va<vb?-1:va>vb?1:0)*(sortState.dir==='asc'?1:-1)});return arr}
 function statusBadge(o){const d=deliveredState(o);return d==='ENTREGADO'?'<span class="badge b-delivered">✓ ENTREGADO</span>':'<span class="badge b-pending">● NO ENTREGADO</span>'}
 function channelBadge(c){return `<span class="badge ${c==='HD'?'b-red':c==='PUP'?'b-blue':'b-gray'}">${esc(c||'-')}</span>`}
@@ -671,7 +706,12 @@ window.UrbanoApp={
   renderDashboard
 };
 
+resetOperationalFilters();
 refreshAll();
+window.addEventListener('pageshow',e=>{
+  resetOperationalFilters();
+  renderOrders();
+});
 })();
 </script>
 
@@ -782,14 +822,29 @@ async function loadConfig(){
 async function loadMonth(month){
   month=normalizeMonth(month);
   if(!month||loadedMonths.has(month))return;
+
   setSync('syncing',`Firebase: cargando ${month}`);
+
   const snap=await getDocs(collection(db,'urbano_months',month,'buckets'));
   const orders=[];
   snap.forEach(d=>{
     const data=d.data();
     if(Array.isArray(data.orders))orders.push(...data.orders);
   });
-  window.UrbanoApp?.replaceMonthOrders?.(month,orders);
+
+  // Firestore ya respondió correctamente en este punto.
+  try{
+    window.UrbanoApp?.replaceMonthOrders?.(month,orders);
+  }catch(error){
+    console.warn('Pedidos recibidos de Firebase, pero falló la caché local.',error);
+    const app=window.UrbanoApp;
+    if(app){
+      // replaceMonthOrders normalmente actualiza el estado; este catch
+      // evita etiquetar el problema local como fallo de Firestore.
+      try{app.refreshAll?.()}catch(_){}
+    }
+  }
+
   loadedMonths.add(month);
   setSync('ok','Firebase sincronizado');
 }
@@ -856,9 +911,16 @@ async function saveOrder(order){
 }
 async function migrateLocalIfNeeded(){return}
 async function initializeCloud(){
-  setSync('syncing','Firebase: conectando');
+  setSync('syncing','Firebase: leyendo datos');
 
-  await loadConfig();
+  // La configuración es secundaria. Si falla por un problema local,
+  // no debe impedir que se carguen los pedidos.
+  try{
+    await loadConfig();
+  }catch(error){
+    console.warn('No se pudo cargar/aplicar configuración; continúo con pedidos.',error);
+  }
+
   await discoverMonths();
 
   if(availableMonths.length){
@@ -900,18 +962,25 @@ let authAttempt=false;
 
 function showFirebaseError(error){
   console.error('Firebase:',error);
-  const code=String(error?.code||'');
+  const code=String(error?.code||'').replace(/^firebase\//,'');
+  const name=String(error?.name||'');
   const pill=$('firebaseSyncPill');
-  if(pill)pill.title=[code,String(error?.message||'')].filter(Boolean).join(' · ');
+  const detail=[code||name,String(error?.message||'')].filter(Boolean).join(' · ');
+  if(pill)pill.title=detail;
 
   if(code.includes('permission-denied')){
     setSync('error','Firebase: sin permisos');
   }else if(code.includes('operation-not-allowed')){
     setSync('error','Firebase: anónimo desactivado');
-  }else if(code.includes('network')){
+  }else if(code.includes('too-many-requests')||code.includes('quota')){
+    setSync('error','Firebase: límite temporal');
+  }else if(code.includes('network')||code.includes('unavailable')){
     setSync('error','Firebase: sin conexión');
+  }else if(name.includes('QuotaExceeded')||name.includes('SecurityError')){
+    // Esto es almacenamiento del navegador, NO Firebase.
+    setSync('ok','Firebase sincronizado · sin caché local');
   }else{
-    setSync('error','Firebase: error de conexión');
+    setSync('error',`Firebase: ${code||name||'error'}`);
   }
 }
 
