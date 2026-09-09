@@ -232,7 +232,7 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
 </style>
 
 </head>
-<body data-app-version="firebase-v2">
+<body data-app-version="firebase-v3">
 
 
 
@@ -257,7 +257,7 @@ body.firebase-locked .app{filter:none!important;pointer-events:auto!important;us
     </header>
     <div class="content">
       <section class="page active" id="page-pedidos">
-        <div class="section-head"><div><h2>Pedidos</h2></div><div class="actions"><button class="btn" id="exportOrders">⬇ Excel</button><button class="btn primary" data-go="bases">＋ Actualizar bases</button></div></div>
+        <div class="section-head"><div><h2>Pedidos</h2></div><div class="actions"><button class="btn" id="exportOrders">⬇ Excel</button></div></div>
         <div class="quickbar"><div class="quick-left"><button class="btn small filter-toggle" id="toggleFilters">▾ Filtros</button><button class="chip" id="qPending">↑ Pendientes primero</button><button class="chip" id="qUngestioned">Solo sin gestión</button><button class="btn small" id="copyPending">📋 Copiar guías pendientes</button><button class="btn small" id="clearFilters">Limpiar</button></div><div class="quick-right"><span class="summary-mini" id="visibleCount">0 pedidos</span></div></div>
         <div class="card filter-panel" id="filterPanel">
           <div class="filters">
@@ -512,10 +512,10 @@ function processTC(){
     if(!o&&inv){o=byOrder.get(inv);if(o)byOrderCount++}
     if(!o){notFound++;continue}
     matched++;
-    const socio=norm(get(r,'SOCIO','CODIGO SOCIO','CODIGO'));
-    const name=norm(get(r,'NOMBRE_SOCIO','NOMBRE SOCIO','NOMBRE_CLIENTE','NOMBRE CLIENTE'));
+    const socio=norm(get(r,'SOCIO','CODIGO SOCIO','CÓDIGO SOCIO','COD SOCIO','CODIGO','CÓDIGO'));
+    const name=norm(get(r,'NOMBRE_SOCIO','NOMBRE SOCIO','NOMBRE_CLIENTE','NOMBRE CLIENTE','SOCIO NOMBRE','NOMBRE'));
     const ref=norm(get(r,'REFERENCIAS','REFERENCIA'));
-    const phone=norm(get(r,'TELEFONO_SOCIO','TELEFONO SOCIO','CELULAR','TELEFONO_CLIENTE','TELEFONO CLIENTE'));
+    const phone=norm(get(r,'TELEFONO_SOCIO','TELEFONO SOCIO','TELÉFONO SOCIO','CELULAR','CELULAR SOCIO','TELEFONO_CLIENTE','TELEFONO CLIENTE','TELEFONO','TELÉFONO'));
     if(socio)o.socio=socio;if(name)o.memberName=name;if(ref)o.reference=ref;if(phone)o.phone=phone;
     const m=monthKey(o.guideDate); if(m)touched.add(m);
   }
@@ -538,16 +538,19 @@ function saveModal(){
 function openSocioModal(guide){
   const o=state.orders.find(x=>x.guide===guide);
   if(!o)return;
-  const cod=o.socio||'-';
-  const nombre=o.memberName||o.recipient||'-';
-  const celular=o.phone||o.phone1||o.phone2||'-';
-  $('socioModalTitle').textContent=`Socio · ${o.guide}`;
+
+  const codigo=norm(o.socio)||'-';
+  const nombre=norm(o.memberName)||'-';
+  const celular=norm(o.phone)||norm(o.phone1)||norm(o.phone2)||'-';
+
+  $('socioModalTitle').textContent=`Datos del socio · ${o.guide}`;
   $('socioModalBody').innerHTML=`
     <div class="socio-info-grid">
-      <div class="socio-info-card"><label>Código</label><strong>${esc(cod)}</strong></div>
+      <div class="socio-info-card"><label>Código</label><strong>${esc(codigo)}</strong></div>
       <div class="socio-info-card"><label>Nombre</label><strong>${esc(nombre)}</strong></div>
       <div class="socio-info-card"><label>Celular</label><strong>${esc(celular)}</strong></div>
-    </div>`;
+    </div>
+  `;
   $('socioModal').classList.add('show');
 }
 function closeSocioModal(){$('socioModal').classList.remove('show');socioGuide=null}
@@ -721,7 +724,8 @@ function appConfig(){
 }
 async function discoverMonths(){
   const snap=await getDocs(collection(db,'urbano_months'));
-  availableMonths=snap.docs.map(d=>d.id).filter(Boolean).sort().reverse();
+  const found=snap.docs.map(d=>d.id).filter(Boolean);
+  availableMonths=[...new Set([...availableMonths,...found])].sort().reverse();
   window.UrbanoFirebase.availableMonths=availableMonths;
   window.UrbanoApp?.refreshAll?.();
   return availableMonths;
@@ -770,6 +774,7 @@ async function loadMonth(month){
   setSync('ok','Firebase sincronizado');
 }
 async function ensureSelection(month){
+  if(!firebaseReady){await connectFirebase().catch(()=>{});}
   if(month){
     await loadMonth(month);
   }else{
@@ -838,15 +843,14 @@ async function migrateLocalIfNeeded(){
   }
   await syncMonths(localMonths);
 }
-const withTimeout=(p,ms=12000)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('firebase-timeout')),ms))]);
 async function initializeCloud(){
   setSync('syncing','Firebase: conectando');
-  await withTimeout(loadConfig());
-  await withTimeout(discoverMonths());
-  await withTimeout(migrateLocalIfNeeded());
+  await loadConfig();
+  await discoverMonths();
+  await migrateLocalIfNeeded();
   if(availableMonths.length){
     const preferred=availableMonths[0];
-    await withTimeout(loadMonth(preferred));
+    await loadMonth(preferred);
     const f=$('fMonth'), d=$('dashMonth');
     if(f)f.value=preferred;
     if(d)d.value=preferred;
@@ -870,33 +874,67 @@ window.UrbanoFirebase={
 await setPersistence(auth,browserLocalPersistence).catch(()=>{});
 
 
-let cloudInitStarted=false;
-async function bootCloud(user){
-  if(cloudInitStarted)return;
-  cloudInitStarted=true;
-  currentUser=user;
+
+let firebaseReady=false;
+let firebaseConnecting=false;
+let firebaseRetryTimer=null;
+
+function scheduleFirebaseRetry(delay=4000){
+  clearTimeout(firebaseRetryTimer);
+  firebaseRetryTimer=setTimeout(()=>connectFirebase(),delay);
+}
+
+async function connectFirebase(){
+  if(firebaseReady||firebaseConnecting)return;
+  firebaseConnecting=true;
+  setSync('syncing','Firebase: conectando');
+
   try{
+    let user=auth.currentUser;
+    if(!user){
+      const cred=await signInAnonymously(auth);
+      user=cred.user;
+    }
+    currentUser=user;
+
     await initializeCloud();
+
+    firebaseReady=true;
+    setSync('ok','Firebase sincronizado');
+    clearTimeout(firebaseRetryTimer);
   }catch(error){
-    console.warn('Firebase cloud unavailable, local mode remains active.', error);
-    setSync('error','Modo local');
-    cloudInitStarted=false;
+    console.error('Firebase connection error:',error);
+    firebaseReady=false;
+
+    const code=String(error?.code||'');
+    if(code.includes('permission-denied')){
+      setSync('error','Firebase: sin permisos');
+    }else if(code.includes('network')){
+      setSync('syncing','Firebase: sin red, reintentando');
+    }else{
+      setSync('syncing','Firebase: reconectando');
+    }
+    scheduleFirebaseRetry(4000);
+  }finally{
+    firebaseConnecting=false;
   }
 }
-onAuthStateChanged(auth,async user=>{
+
+onAuthStateChanged(auth,user=>{
   if(user){
-    await bootCloud(user);
-    return;
-  }
-  try{
-    setSync('syncing','Firebase: conectando');
-    const cred=await signInAnonymously(auth);
-    await bootCloud(cred.user);
-  }catch(error){
-    console.warn('Anonymous auth unavailable, local mode remains active.', error);
-    setSync('error','Modo local');
+    currentUser=user;
+    connectFirebase();
+  }else{
+    connectFirebase();
   }
 });
+
+window.addEventListener('online',()=>connectFirebase());
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&!firebaseReady)connectFirebase();
+});
+setTimeout(()=>connectFirebase(),250);
+
 </script>
 
 </body>
