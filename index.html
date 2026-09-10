@@ -280,7 +280,7 @@ th.sortable.active-sort .sort-indicator{color:#A71920;font-weight:900}
 </style>
 
 </head>
-<body data-app-version="editar-status-v1">
+<body data-app-version="sync-v2-visits-v2">
 
 
 
@@ -316,7 +316,7 @@ th.sortable.active-sort .sort-indicator{color:#A71920;font-weight:900}
             <div class="field"><label>Estado</label><select class="select" id="fDelivered" autocomplete="off"><option value="">Todos</option><option value="ENTREGADO">Entregados</option><option value="NO ENTREGADO">No entregados</option></select></div>
             <div class="field"><label>Status Urbano</label><select class="select" id="fStatus" autocomplete="off"><option value="">Todos</option></select></div>
             <div class="field"><label>Clasificación / Claims</label><select class="select" id="fClaim" autocomplete="off"><option value="">Todas</option></select></div>
-            <div class="field"><label>Visitas</label><select class="select" id="fVisits" autocomplete="off"><option value="">Todas</option><option value="0">0 visitas</option><option value="1">1 visita</option><option value="2">2 visitas</option><option value="3+">3+ visitas</option></select></div>
+            <div class="field"><label>Visitas</label><select class="select" id="fVisits" autocomplete="off"><option value="">Todas</option><option value="0">0 visitas</option><option value="1">1 visita</option><option value="2">2 visitas</option><option value="3">3 visitas</option><option value="gt3">Más de 3 visitas</option></select></div>
             <div class="field search-span"><label>Buscar</label><input class="input" id="fSearch" autocomplete="off" placeholder="Buscar guía, nombre, código..."></div>
           </div>
         </div>
@@ -446,10 +446,65 @@ function deliveredState(o){return o.deliveryDate?'ENTREGADO':'NO ENTREGADO'}
 function orderDays(o){return o&&o.deliveryDate?businessDays(o.guideDate,o.deliveryDate):null}
 function optionHtml(arr,selectedVal='',blank=''){return (blank!==null?`<option value="">${esc(blank)}</option>`:'')+arr.map(x=>`<option ${x===selectedVal?'selected':''}>${esc(x)}</option>`).join('')}
 function get(o,...keys){for(const k of keys){const nk=normKey(k);for(const [rk,rv] of Object.entries(o)){if(normKey(rk)===nk&&norm(rv)!=='')return rv}}return''}
-function headerScore(row,type=''){const keys=(row||[]).map(normKey);const sets={tc:['WAYBILL NUMBER','INVO NUMBER','SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE'],urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','NRO VISITAS'],oriflame:['NO GUIA','FECHA GUIA','COD DISTR','NOMBRE DESTINATARIO','NUMERO DE ORDEN']};const wanted=sets[type]||[];let score=0;wanted.forEach(w=>{if(keys.some(k=>k===w||k.includes(w)))score++});return score}
+function headerScore(row,type=''){const keys=(row||[]).map(normKey);const sets={tc:['WAYBILL NUMBER','WAYBILL_NUMBER','INVO NUMBER','INVO_NUMBER','SOCIO','CODIGO SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE'],urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','NRO VISITAS'],oriflame:['NO GUIA','GUIA','WAYBILL NUMBER','WAYBILL_NUMBER','FECHA GUIA','FECHA_GUIA','AWB DATE','COD DISTR','COD DISTRIBUIDOR','SERVICE CENTRE','NOMBRE DESTINATARIO','DESTINATARIO','NUMERO DE ORDEN','INVO NUMBER','INVO_NUMBER']};const wanted=sets[type]||[];let score=0;wanted.forEach(w=>{if(keys.some(k=>k===w||k.includes(w)))score++});return score}
 function rowsFromAOA(aoa,type=''){aoa=(aoa||[]).filter(r=>Array.isArray(r)&&r.some(v=>norm(v)!==''));if(!aoa.length)return[];let best=0,bestScore=-1;for(let i=0;i<Math.min(25,aoa.length);i++){const s=headerScore(aoa[i],type);if(s>bestScore){bestScore=s;best=i}}if(bestScore<=0)best=0;const headers=(aoa[best]||[]).map((h,i)=>norm(h)||`COL_${i+1}`);return aoa.slice(best+1).filter(r=>r.some(v=>norm(v)!=='')).map(vals=>{const obj={};headers.forEach((h,i)=>{let key=h;if(Object.prototype.hasOwnProperty.call(obj,key))key=`${key}_${i+1}`;obj[key]=vals[i]??''});return obj})}
 function parseDelimited(text,type=''){text=String(text||'').trim();if(!text)return[];const lines=text.split(/\r?\n/).filter(x=>x.trim()!=='');if(!lines.length)return[];const sample=lines.slice(0,8).join('\n');const delimiter=sample.includes('\t')?'\t':(sample.includes(';')?';':',');const parseLine=line=>{if(delimiter==='\t')return line.split('\t');let out=[],cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===delimiter&&!q){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out};return rowsFromAOA(lines.map(parseLine),type)}
-async function readFileRows(file,preferredSheet,type=''){if(!file)return[];if(window.XLSX){const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array',cellDates:false});const prefs=Array.isArray(preferredSheet)?preferredSheet:[preferredSheet];let name='';for(const p of prefs.filter(Boolean)){name=wb.SheetNames.find(n=>normKey(n)===normKey(p));if(name)break}if(!name&&type==='tc')name=wb.SheetNames.find(n=>['TCII','TC II','TCIII','TC III','TC','TOTAL CONTROL'].some(p=>normKey(n)===normKey(p)))||wb.SheetNames.find(n=>normKey(n).startsWith('TC'));if(!name&&type==='urbano')name=wb.SheetNames.find(n=>normKey(n).includes('URBANO DATA'));if(!name&&type==='oriflame')name=wb.SheetNames.find(n=>normKey(n)==='URBANO'||normKey(n).includes('BASE'));name=name||wb.SheetNames[0];const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:true});return rowsFromAOA(aoa,type)}const raw=await file.text();return parseDelimited(raw,type)}
+async function readFileRows(file,preferredSheet,type=''){
+  if(!file)return[];
+
+  if(window.XLSX){
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',cellDates:false});
+    const prefs=(Array.isArray(preferredSheet)?preferredSheet:[preferredSheet]).filter(Boolean);
+
+    let bestName='';
+    let bestAOA=null;
+    let bestScore=-1;
+
+    // First evaluate every sheet. This protects us when Oriflame changes
+    // the sheet name/order in a new workbook.
+    for(const name of wb.SheetNames){
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{
+        header:1,
+        defval:'',
+        raw:true
+      });
+
+      let score=0;
+      for(let i=0;i<Math.min(30,aoa.length);i++){
+        score=Math.max(score,headerScore(aoa[i],type));
+      }
+
+      // Small tie-break preference for familiar sheet names.
+      if(prefs.some(p=>normKey(p)===normKey(name)))score+=0.25;
+      if(type==='tc'&&normKey(name).startsWith('TC'))score+=0.15;
+      if(type==='urbano'&&normKey(name).includes('URBANO DATA'))score+=0.15;
+
+      if(score>bestScore){
+        bestScore=score;
+        bestName=name;
+        bestAOA=aoa;
+      }
+    }
+
+    // If no recognizable headers were found, fall back to first sheet.
+    if(!bestAOA){
+      bestName=wb.SheetNames[0];
+      bestAOA=XLSX.utils.sheet_to_json(wb.Sheets[bestName],{
+        header:1,
+        defval:'',
+        raw:true
+      });
+    }
+
+    const rows=rowsFromAOA(bestAOA,type);
+    rows.__sheetName=bestName;
+    return rows;
+  }
+
+  const raw=await file.text();
+  return parseDelimited(raw,type);
+}
 function sourceRows(type){const ta={oriflame:'pasteOriflame',urbano:'pasteUrbano',tc:'pasteTC'}[type];const txt=$(ta).value.trim();if(txt)return parseDelimited(txt,type);return staged[type]||[]}
 
 function addMonthsToSelect(){
@@ -489,7 +544,7 @@ function resetOperationalFilters(){
   $('qUngestioned')?.classList.remove('active');
 }
 
-function filteredOrders(){const month=$('fMonth').value,dateFrom=$('fDateFrom').value,dateTo=$('fDateTo').value,channel=$('fChannel').value,del=$('fDelivered').value,status=$('fStatus').value,claim=$('fClaim').value,vis=$('fVisits').value;const qTokens=normKey($('fSearch').value).split(' ').filter(Boolean);let arr=state.orders.filter(o=>{if(month&&monthKey(o.guideDate)!==month)return false;const gd=isoDate(o.guideDate);if(dateFrom&&gd<dateFrom)return false;if(dateTo&&gd>dateTo)return false;if(channel&&o.channel!==channel)return false;if(del&&deliveredState(o)!==del)return false;if(status&&normalizeStatus(o.status)!==status)return false;if(claim&&o.claim!==claim)return false;const vv=Number(o.visits||0);if(vis==='0'&&vv!==0)return false;if(vis==='1'&&vv!==1)return false;if(vis==='2'&&vv!==2)return false;if(vis==='3+'&&vv<3)return false;if(onlyUngestioned&&norm(o.management))return false;if(qTokens.length){const hay=normKey([o.guide,o.wyb,o.codDist,o.order,o.socio,o.memberName,o.recipient,o.phone,o.phone1,o.phone2,o.address,o.reference,o.barrio,o.city,o.province,o.channel,o.status,o.management,o.claim].join(' '));if(!qTokens.every(t=>hay.includes(t)))return false}return true});const key=sortState.key;arr.sort((a,b)=>{if(pendingFirst){const pa=deliveredState(a)==='NO ENTREGADO'?0:1,pb=deliveredState(b)==='NO ENTREGADO'?0:1;if(pa!==pb)return pa-pb}let va=key==='days'?(orderDays(a)??9999):(key==='deliveredState'?deliveredState(a):a[key]);let vb=key==='days'?(orderDays(b)??9999):(key==='deliveredState'?deliveredState(b):b[key]);if(key.toLowerCase().includes('date')){va=parseDate(va)?.getTime()||0;vb=parseDate(vb)?.getTime()||0}else if(key==='visits'||key==='days'){va=Number(va||0);vb=Number(vb||0)}else{va=norm(va).toUpperCase();vb=norm(vb).toUpperCase()}return (va<vb?-1:va>vb?1:0)*(sortState.dir==='asc'?1:-1)});return arr}
+function filteredOrders(){const month=$('fMonth').value,dateFrom=$('fDateFrom').value,dateTo=$('fDateTo').value,channel=$('fChannel').value,del=$('fDelivered').value,status=$('fStatus').value,claim=$('fClaim').value,vis=$('fVisits').value;const qTokens=normKey($('fSearch').value).split(' ').filter(Boolean);let arr=state.orders.filter(o=>{if(month&&monthKey(o.guideDate)!==month)return false;const gd=isoDate(o.guideDate);if(dateFrom&&gd<dateFrom)return false;if(dateTo&&gd>dateTo)return false;if(channel&&o.channel!==channel)return false;if(del&&deliveredState(o)!==del)return false;if(status&&normalizeStatus(o.status)!==status)return false;if(claim&&o.claim!==claim)return false;const vv=Number(o.visits||0);if(vis==='0'&&vv!==0)return false;if(vis==='1'&&vv!==1)return false;if(vis==='2'&&vv!==2)return false;if(vis==='3'&&vv!==3)return false;if(vis==='gt3'&&vv<=3)return false;if(onlyUngestioned&&norm(o.management))return false;if(qTokens.length){const hay=normKey([o.guide,o.wyb,o.codDist,o.order,o.socio,o.memberName,o.recipient,o.phone,o.phone1,o.phone2,o.address,o.reference,o.barrio,o.city,o.province,o.channel,o.status,o.management,o.claim].join(' '));if(!qTokens.every(t=>hay.includes(t)))return false}return true});const key=sortState.key;arr.sort((a,b)=>{if(pendingFirst){const pa=deliveredState(a)==='NO ENTREGADO'?0:1,pb=deliveredState(b)==='NO ENTREGADO'?0:1;if(pa!==pb)return pa-pb}let va=key==='days'?(orderDays(a)??9999):(key==='deliveredState'?deliveredState(a):a[key]);let vb=key==='days'?(orderDays(b)??9999):(key==='deliveredState'?deliveredState(b):b[key]);if(key.toLowerCase().includes('date')){va=parseDate(va)?.getTime()||0;vb=parseDate(vb)?.getTime()||0}else if(key==='visits'||key==='days'){va=Number(va||0);vb=Number(vb||0)}else{va=norm(va).toUpperCase();vb=norm(vb).toUpperCase()}return (va<vb?-1:va>vb?1:0)*(sortState.dir==='asc'?1:-1)});return arr}
 function statusBadge(o){const d=deliveredState(o);return d==='ENTREGADO'?'<span class="badge b-delivered">✓ ENTREGADO</span>':'<span class="badge b-pending">● NO ENTREGADO</span>'}
 function channelBadge(c){return `<span class="badge ${c==='HD'?'b-red':c==='PUP'?'b-blue':'b-gray'}">${esc(c||'-')}</span>`}
 function statusClass(v){const s=normalizeStatus(v);if(s.includes('ENTREGADO'))return'st-delivered';if(s.includes('SALIO A RUTA')||s.includes('EN RUTA'))return'st-route';if(s.includes('ARRIBADO'))return'st-arrived';if(s.includes('VISITADO'))return'st-visited';if(s.includes('SOLICITUD DE SERVICIO'))return'st-service';if(s.includes('DESPACHADO'))return'st-dispatched';return'st-other'}
@@ -531,42 +586,102 @@ function bindRowEvents(){
     openStatusEdit(el.dataset.guide);
   });
 }
-function processOriflame(){
+async function processOriflame(){
   const rows=sourceRows('oriflame');
   if(!rows.length)return toast('No hay datos para procesar.','warn');
+
   snapshotBeforeLoad();
-  let created=0,updated=0,skipped=0;
+
+  let created=0,updated=0,skipped=0,noDate=0;
   const touched=new Set();
   const by=new Map(state.orders.map(o=>[normGuide(o.guide),o]));
+
   for(const r of rows){
-    const guide=normGuide(get(r,'NO GUIA','GUIA','WAYBILL_NUMBER','WAYBILL NUMBER','NRO GUIA','NUMERO GUIA'));
-    if(!guide){skipped++;continue}
+    const guide=normGuide(get(
+      r,
+      'NO GUIA','NO GUÍA','GUIA','GUÍA',
+      'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL',
+      'NRO GUIA','NRO GUÍA','NUMERO GUIA','NÚMERO GUIA','AWB'
+    ));
+
+    if(!guide){
+      skipped++;
+      continue;
+    }
+
     let o=by.get(guide);
+
+    const incomingGuideDate=isoDate(get(
+      r,
+      'FECHA GUIA','FECHA GUÍA','FECHA_GUIA',
+      'AWB_DATE','AWB DATE',
+      'WAYBILL_DATE','WAYBILL DATE',
+      'FECHA DESPACHO','FECHA DE GUIA','FECHA DE GUÍA'
+    ));
+
+    // New orders need a guide date so we can save them under YYYY-MM.
+    if(!o&&!incomingGuideDate){
+      noDate++;
+      continue;
+    }
+
     const fresh={
       guide,
-      guideDate:isoDate(get(r,'FECHA GUIA','FECHA GUÍA','AWB_DATE')),
-      codDist:norm(get(r,'COD DISTR.','COD DISTR','COD DISTRIBUIDOR','SERVICE_CENTRE')),
-      recipient:norm(get(r,'NOMBRE DESTINATARIO','DESTINATARIO')),
-      address:norm(get(r,'DIRECCION ENVIO','DIRECCION DE ENTREGA','DIRECCIÓN ENVIO')),
-      barrio:norm(get(r,'BARRIO')),
-      phone1:norm(get(r,'TELEFONO 1','TELEFONO1','TELEFONO')),
-      phone2:norm(get(r,'TELEFONO 2','TELEFONO2')),
-      order:norm(get(r,'NUMERO DE ORDEN','NÚMERO DE ORDEN','INVO_NUMBER','ORDER_NUMBER')),
-      orderDate:isoDate(get(r,'ORDER DATE','FECHA_PEDIDO','FECHA PEDIDO')),
-      province:norm(get(r,'PROVINCIA','CIUDAD')),
-      city:norm(get(r,'CIUDAD')),
-      weight:norm(get(r,'PESO')),
-      packages:norm(get(r,'BULTOS','PIEZAS')),
-      declaredValue:norm(get(r,'VALOR DECLARADO')),
-      promiseDate:isoDate(get(r,'PROMESA DE ENTREGA')),
-      courier:norm(get(r,'COURIER'))||'URBANO'
+      guideDate:incomingGuideDate||o?.guideDate||'',
+      codDist:norm(get(
+        r,
+        'COD DISTR.','COD DISTR','COD. DISTR.',
+        'COD DISTRIBUIDOR','CODIGO DISTRIBUIDOR','CÓDIGO DISTRIBUIDOR',
+        'SERVICE_CENTRE','SERVICE CENTRE'
+      )),
+      recipient:norm(get(
+        r,
+        'NOMBRE DESTINATARIO','NOMBRE_DESTINATARIO',
+        'DESTINATARIO','CONSIGNEE','NOMBRE CLIENTE'
+      )),
+      address:norm(get(
+        r,
+        'DIRECCION ENVIO','DIRECCIÓN ENVIO','DIRECCION DE ENTREGA',
+        'DIRECCIÓN DE ENTREGA','ADDRESS','DIRECCION'
+      )),
+      barrio:norm(get(r,'BARRIO','SECTOR')),
+      phone1:norm(get(
+        r,
+        'TELEFONO 1','TELÉFONO 1','TELEFONO1','CELULAR','TELEFONO'
+      )),
+      phone2:norm(get(
+        r,
+        'TELEFONO 2','TELÉFONO 2','TELEFONO2'
+      )),
+      order:norm(get(
+        r,
+        'NUMERO DE ORDEN','NÚMERO DE ORDEN',
+        'INVO_NUMBER','INVO NUMBER',
+        'ORDER_NUMBER','ORDER NUMBER','ORDEN'
+      )),
+      orderDate:isoDate(get(
+        r,
+        'ORDER DATE','ORDER_DATE','FECHA_PEDIDO','FECHA PEDIDO'
+      )),
+      province:norm(get(r,'PROVINCIA','PROVINCE')),
+      city:norm(get(r,'CIUDAD','CITY')),
+      weight:norm(get(r,'PESO','WEIGHT')),
+      packages:norm(get(r,'BULTOS','PIEZAS','PACKAGES')),
+      declaredValue:norm(get(r,'VALOR DECLARADO','DECLARED VALUE')),
+      promiseDate:isoDate(get(
+        r,
+        'PROMESA DE ENTREGA','FECHA PROMESA','PROMISE DATE'
+      )),
+      courier:norm(get(r,'COURIER','TRANSPORTISTA'))||'URBANO'
     };
-    fresh.channel=deriveChannel(fresh.codDist)||norm(get(r,'CANAL'));
+
+    fresh.channel=deriveChannel(fresh.codDist)||norm(get(r,'CANAL','CHANNEL'));
+
     const legacy={
       deliveryDate:isoDate(get(r,'FECHA DE ENTREGA17','FECHA DE ENTREGA')),
       status:normalizeStatus(get(r,'RESULTADO VISITA 120','STATUS URBANO')),
       statusDetail:norm(get(r,'DETALLE DE ESTADO 16','DETALLE STATUS')),
-      wyb:norm(get(r,'WYB2','WYB URBANO')),
+      wyb:norm(get(r,'WYB2','WYB URBANO','GUIA URBANO','GUÍA URBANO')),
       arrivedPup:isoDate(get(r,'ARRIBO PUP','ARRIBO DESTINO')),
       claim:norm(get(r,'CLASIFICACION/CLAIMS','CLASIFICACIÓN/CLAIMS')).toUpperCase(),
       management:norm(get(r,'GESTION','GESTIÓN')),
@@ -576,23 +691,73 @@ function processOriflame(){
       reference:norm(get(r,'REFERENCIA')),
       phone:norm(get(r,'CELULAR'))
     };
+
     if(!o){
-      o={...fresh,status:legacy.status||'',statusDetail:legacy.statusDetail||'',statusDate:'',visits:0,wyb:legacy.wyb||'',arrivedPup:legacy.arrivedPup||'',deliveryDate:legacy.deliveryDate||'',requirement:'',requirementDate:'',claim:legacy.claim||'',management:legacy.management||'',responsible:legacy.responsible||'',socio:legacy.socio||'',memberName:legacy.memberName||'',reference:legacy.reference||'',phone:legacy.phone||''};
-      state.orders.push(o); by.set(guide,o); created++;
+      o={
+        ...fresh,
+        status:legacy.status||'',
+        statusDetail:legacy.statusDetail||'',
+        statusDate:'',
+        visits:0,
+        wyb:legacy.wyb||'',
+        arrivedPup:legacy.arrivedPup||'',
+        deliveryDate:legacy.deliveryDate||'',
+        requirement:'',
+        requirementDate:'',
+        claim:legacy.claim||'',
+        management:legacy.management||'',
+        responsible:legacy.responsible||'',
+        socio:legacy.socio||'',
+        memberName:legacy.memberName||'',
+        reference:legacy.reference||'',
+        phone:legacy.phone||''
+      };
+      state.orders.push(o);
+      by.set(guide,o);
+      created++;
     }else{
-      for(const [k,v] of Object.entries(fresh))if(norm(v)!=='')o[k]=v;
-      for(const [k,v] of Object.entries(legacy))if(norm(v)!==''&&!norm(o[k]))o[k]=v;
+      for(const [k,v] of Object.entries(fresh)){
+        if(norm(v)!=='')o[k]=v;
+      }
+      for(const [k,v] of Object.entries(legacy)){
+        if(norm(v)!==''&&!norm(o[k]))o[k]=v;
+      }
       updated++;
     }
-    const m=monthKey(o.guideDate); if(m)touched.add(m);
-  }
-  state.lastLoads.oriflame=new Date().toISOString(); saveState();
-  staged.oriflame=null; $('pasteOriflame').value=''; $('fileOriflame').value='';
-  toast(`Base Oriflame: ${created} nuevos · ${updated} actualizados${skipped?` · ${skipped} omitidos`:''}.`);
-  refreshAll();
-  window.UrbanoFirebase?.syncMonths([...touched]).catch(()=>{});
-}
 
+    const m=monthKey(o.guideDate);
+    if(m)touched.add(m);
+  }
+
+  state.lastLoads.oriflame=new Date().toISOString();
+  saveState();
+
+  staged.oriflame=null;
+  $('pasteOriflame').value='';
+  $('fileOriflame').value='';
+
+  refreshAll();
+
+  if(!created&&!updated){
+    return toast(`Base Oriflame sin pedidos válidos${noDate?` · ${noDate} sin FECHA GUIA`:''}${skipped?` · ${skipped} sin guía`:''}.`,'bad');
+  }
+
+  const localMsg=`Base Oriflame: ${created} nuevos · ${updated} actualizados${noDate?` · ${noDate} sin fecha`:''}${skipped?` · ${skipped} omitidos`:''}.`;
+
+  try{
+    if(!window.UrbanoFirebase){
+      throw new Error('Firebase todavía no está inicializado.');
+    }
+
+    await window.UrbanoFirebase.syncMonths([...touched]);
+
+    toast(`${localMsg} Firebase actualizado.`);
+  }catch(error){
+    console.error('Falló sincronización de Base Oriflame:',error);
+    const code=String(error?.code||error?.message||'');
+    toast(`${localMsg} No se pudo sincronizar Firebase: ${code||'error'}.`,'bad');
+  }
+}
 function processUrbano(){
   const rows=sourceRows('urbano');
   if(!rows.length)return toast('No hay URBANO DATA para procesar.','warn');
@@ -947,7 +1112,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
   getFirestore, doc, setDoc, getDoc, collection, getDocs,
-  writeBatch, serverTimestamp
+  writeBatch, serverTimestamp, onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -966,6 +1131,10 @@ const BUCKET_COUNT = 32;
 const loadedMonths = new Set();
 let availableMonths = [];
 let currentUser = null;
+let configUnsubscribe=null;
+let monthUnsubscribe=null;
+let watchedMonth='';
+let lastRemoteRevision='';
 
 const $ = id => document.getElementById(id);
 const normalizeMonth = m => String(m||'').trim();
@@ -1006,6 +1175,80 @@ function monthOrders(month){
 function appConfig(){
   return window.UrbanoApp?.getConfig?.()||{};
 }
+
+async function ensureAuthReady(){
+  if(currentUser)return currentUser;
+  if(auth.currentUser){
+    currentUser=auth.currentUser;
+    return currentUser;
+  }
+  const cred=await signInAnonymously(auth);
+  currentUser=cred.user;
+  return currentUser;
+}
+
+function tsKey(ts){
+  if(!ts)return'';
+  if(typeof ts.toMillis==='function')return String(ts.toMillis());
+  if(ts.seconds!==undefined)return `${ts.seconds}:${ts.nanoseconds||0}`;
+  return String(ts);
+}
+
+function watchMonth(month){
+  month=normalizeMonth(month);
+  if(!month||watchedMonth===month)return;
+
+  if(monthUnsubscribe){
+    try{monthUnsubscribe()}catch(_){}
+  }
+
+  watchedMonth=month;
+  lastRemoteRevision='';
+
+  monthUnsubscribe=onSnapshot(
+    doc(db,'urbano_months',month),
+    async snap=>{
+      if(!snap.exists())return;
+      const data=snap.data()||{};
+      const rev=tsKey(data.updatedAt);
+      if(!rev||rev===lastRemoteRevision)return;
+      lastRemoteRevision=rev;
+
+      // Ignore the write that this same anonymous session just made.
+      if(currentUser&&data.updatedBy===currentUser.uid)return;
+
+      try{
+        await loadMonth(month,true);
+      }catch(error){
+        console.error('No se pudo refrescar el mes desde Firebase:',error);
+      }
+    },
+    error=>console.error('Listener mensual Firebase:',error)
+  );
+}
+
+function watchConfig(){
+  if(configUnsubscribe)return;
+
+  configUnsubscribe=onSnapshot(
+    doc(db,'urbano_meta','config'),
+    snap=>{
+      if(!snap.exists())return;
+      const cfg=snap.data()||{};
+
+      if(Array.isArray(cfg.months)){
+        availableMonths=[...new Set([...availableMonths,...cfg.months])].sort().reverse();
+        window.UrbanoFirebase.availableMonths=availableMonths;
+        window.UrbanoApp?.refreshAll?.();
+
+        // Always watch the newest active month.
+        if(availableMonths[0])watchMonth(availableMonths[0]);
+      }
+    },
+    error=>console.error('Listener config Firebase:',error)
+  );
+}
+
 async function discoverMonths(){
   const snap=await getDocs(collection(db,'urbano_months'));
   const found=snap.docs.map(d=>d.id).filter(Boolean);
@@ -1015,7 +1258,7 @@ async function discoverMonths(){
   return availableMonths;
 }
 async function saveConfig(){
-  if(!currentUser)return;
+  await ensureAuthReady();
   const cfg=appConfig();
   const localMonths=window.UrbanoApp?.getLoadedMonths?.()||[];
   const months=[...new Set([...availableMonths,...localMonths])].sort().reverse();
@@ -1043,41 +1286,36 @@ async function loadConfig(){
     }
   }
 }
-async function loadMonth(month){
+async function loadMonth(month,force=false){
   month=normalizeMonth(month);
-  if(!month||loadedMonths.has(month))return;
+  if(!month||(!force&&loadedMonths.has(month)))return;
 
+  await ensureAuthReady();
   setSync('syncing',`Firebase: cargando ${month}`);
 
   const snap=await getDocs(collection(db,'urbano_months',month,'buckets'));
   const orders=[];
+
   snap.forEach(d=>{
     const data=d.data();
     if(Array.isArray(data.orders))orders.push(...data.orders);
   });
 
-  // Firestore ya respondió correctamente en este punto.
-  try{
-    window.UrbanoApp?.replaceMonthOrders?.(month,orders);
-  }catch(error){
-    console.warn('Pedidos recibidos de Firebase, pero falló la caché local.',error);
-    const app=window.UrbanoApp;
-    if(app){
-      // replaceMonthOrders normalmente actualiza el estado; este catch
-      // evita etiquetar el problema local como fallo de Firestore.
-      try{app.refreshAll?.()}catch(_){}
-    }
-  }
-
+  window.UrbanoApp?.replaceMonthOrders?.(month,orders);
   loadedMonths.add(month);
+  watchMonth(month);
+
   setSync('ok','Firebase sincronizado');
 }
 async function ensureSelection(month){
-  if(!currentUser)return;
+  await ensureAuthReady();
+
   if(month){
     await loadMonth(month);
+    watchMonth(month);
   }else{
     for(const m of availableMonths)await loadMonth(m);
+    if(availableMonths[0])watchMonth(availableMonths[0]);
   }
 }
 function buildBuckets(month){
@@ -1089,38 +1327,58 @@ function buildBuckets(month){
   return map;
 }
 async function syncMonth(month){
-  if(!currentUser||!month)return;
+  month=normalizeMonth(month);
+  if(!month)return;
+
+  await ensureAuthReady();
+
   setSync('syncing',`Firebase: guardando ${month}`);
+
   const buckets=buildBuckets(month);
   const batch=writeBatch(db);
+
   for(const [id,orders] of buckets){
     batch.set(doc(db,'urbano_months',month,'buckets',id),{
       orders:cleanForFirestore(orders),
       updatedAt:serverTimestamp(),
-      updatedBy:currentUser.email||currentUser.uid
+      updatedBy:currentUser.uid
     });
   }
+
   batch.set(doc(db,'urbano_months',month),{
     month,
     orderCount:monthOrders(month).length,
     updatedAt:serverTimestamp(),
-    updatedBy:currentUser.email||currentUser.uid
+    updatedBy:currentUser.uid
   },{merge:true});
+
   await batch.commit();
+
   loadedMonths.add(month);
+
   if(!availableMonths.includes(month)){
     availableMonths=[month,...availableMonths].sort().reverse();
     window.UrbanoFirebase.availableMonths=availableMonths;
   }
+
   await saveConfig();
+  watchMonth(month);
+
   setSync('ok','Firebase sincronizado');
 }
 async function syncMonths(months){
+  await ensureAuthReady();
+
   const unique=[...new Set((months||[]).filter(Boolean))];
-  for(const m of unique)await syncMonth(m);
+  if(!unique.length)throw new Error('No se detectó un mes válido para sincronizar.');
+
+  for(const m of unique){
+    await syncMonth(m);
+  }
 }
 async function saveOrder(order){
-  if(!currentUser||!order)return;
+  if(!order)return;
+  await ensureAuthReady();
   const month=String(order.guideDate||'').slice(0,7);
   if(!month)return;
   const id=bucketId(order.guide);
@@ -1135,25 +1393,27 @@ async function saveOrder(order){
 }
 async function migrateLocalIfNeeded(){return}
 async function initializeCloud(){
+  await ensureAuthReady();
   setSync('syncing','Firebase: leyendo datos');
 
-  // La configuración es secundaria. Si falla por un problema local,
-  // no debe impedir que se carguen los pedidos.
   try{
     await loadConfig();
   }catch(error){
-    console.warn('No se pudo cargar/aplicar configuración; continúo con pedidos.',error);
+    console.warn('No se pudo cargar configuración; continúo con pedidos.',error);
   }
 
   await discoverMonths();
+  watchConfig();
 
   if(availableMonths.length){
     const preferred=availableMonths[0];
-    await loadMonth(preferred);
+    await loadMonth(preferred,true);
 
     const f=$('fMonth'), d=$('dashMonth');
-    if(f)f.value=preferred;
-    if(d)d.value=preferred;
+    if(f&&!f.value)f.value=preferred;
+    if(d&&!d.value)d.value=preferred;
+
+    watchMonth(preferred);
 
     window.UrbanoApp?.renderOrders?.();
     window.UrbanoApp?.renderDashboard?.();
@@ -1172,7 +1432,9 @@ window.UrbanoFirebase={
   syncMonth,
   syncMonths,
   saveOrder,
-  saveConfig
+  saveConfig,
+  ensureAuthReady,
+  watchMonth
 };
 
 await setPersistence(auth,browserLocalPersistence).catch(()=>{});
