@@ -279,8 +279,15 @@ th.sortable.active-sort .sort-indicator{color:#A71920;font-weight:900}
 .status-edit-btn:hover{background:#F8E5E6;color:#A71920}
 </style>
 
+
+<style id="import-audit-style">
+.last-load{line-height:1.45}
+.last-load strong{color:#2B2F36}
+.last-load span{color:#717782}
+button:disabled{opacity:.6;cursor:not-allowed}
+</style>
 </head>
-<body data-app-version="sync-v2-visits-v2">
+<body data-app-version="import-audit-v1">
 
 
 
@@ -428,6 +435,12 @@ function undoLastLoad(){try{const raw=localStorage.getItem(UNDO_KEY);if(!raw)ret
 function toast(msg,type='ok'){const el=document.createElement('div');el.className='toast '+type;el.textContent=msg;$('toasts').appendChild(el);setTimeout(()=>el.remove(),3200)}
 function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function norm(v){return String(v??'').trim().replace(/\s+/g,' ')}
+function cleanCell(v){
+  const s=norm(v);
+  if(!s)return'';
+  if(/^#(N\/A|REF!|VALUE!|DIV\/0!|NAME\?|NULL!|NUM!|SPILL!|CALC!)$/i.test(s))return'';
+  return v;
+}
 function normKey(v){return norm(v).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9]+/g,' ').trim()}
 function normGuide(v){let s=norm(v).replace(/\.0$/,''); return s.replace(/\s/g,'')}
 function num(v){const n=Number(String(v??'').replace(',','.').replace(/[^0-9.-]/g,''));return Number.isFinite(n)?n:0}
@@ -445,9 +458,71 @@ function normalizeStatus(v){return norm(v).toUpperCase()}
 function deliveredState(o){return o.deliveryDate?'ENTREGADO':'NO ENTREGADO'}
 function orderDays(o){return o&&o.deliveryDate?businessDays(o.guideDate,o.deliveryDate):null}
 function optionHtml(arr,selectedVal='',blank=''){return (blank!==null?`<option value="">${esc(blank)}</option>`:'')+arr.map(x=>`<option ${x===selectedVal?'selected':''}>${esc(x)}</option>`).join('')}
-function get(o,...keys){for(const k of keys){const nk=normKey(k);for(const [rk,rv] of Object.entries(o)){if(normKey(rk)===nk&&norm(rv)!=='')return rv}}return''}
-function headerScore(row,type=''){const keys=(row||[]).map(normKey);const sets={tc:['WAYBILL NUMBER','WAYBILL_NUMBER','INVO NUMBER','INVO_NUMBER','SOCIO','CODIGO SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE'],urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','NRO VISITAS'],oriflame:['NO GUIA','GUIA','WAYBILL NUMBER','WAYBILL_NUMBER','FECHA GUIA','FECHA_GUIA','AWB DATE','COD DISTR','COD DISTRIBUIDOR','SERVICE CENTRE','NOMBRE DESTINATARIO','DESTINATARIO','NUMERO DE ORDEN','INVO NUMBER','INVO_NUMBER']};const wanted=sets[type]||[];let score=0;wanted.forEach(w=>{if(keys.some(k=>k===w||k.includes(w)))score++});return score}
-function rowsFromAOA(aoa,type=''){aoa=(aoa||[]).filter(r=>Array.isArray(r)&&r.some(v=>norm(v)!==''));if(!aoa.length)return[];let best=0,bestScore=-1;for(let i=0;i<Math.min(25,aoa.length);i++){const s=headerScore(aoa[i],type);if(s>bestScore){bestScore=s;best=i}}if(bestScore<=0)best=0;const headers=(aoa[best]||[]).map((h,i)=>norm(h)||`COL_${i+1}`);return aoa.slice(best+1).filter(r=>r.some(v=>norm(v)!=='')).map(vals=>{const obj={};headers.forEach((h,i)=>{let key=h;if(Object.prototype.hasOwnProperty.call(obj,key))key=`${key}_${i+1}`;obj[key]=vals[i]??''});return obj})}
+function get(o,...keys){
+  for(const k of keys){
+    const nk=normKey(k);
+    for(const [rk,rv] of Object.entries(o)){
+      const cv=cleanCell(rv);
+      if(normKey(rk)===nk&&norm(cv)!=='')return cv;
+    }
+  }
+  return''
+}
+function headerScore(row,type=''){
+  const keys=(row||[]).map(normKey);
+  const sets={
+    tc:['WAYBILL NUMBER','INVO NUMBER','SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE','REFERENCIAS'],
+    urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','FECHA ESTADO','NRO VISITAS','ARRIBO DESTINO'],
+    oriflame:['NO GUIA','FECHA GUIA','COD DISTR','NOMBRE DESTINATARIO','DIRECCION ENVIO','NUMERO DE ORDEN','CIUDAD','PESO','COURIER','CANAL']
+  };
+  const wanted=sets[type]||[];
+  let score=0;
+  wanted.forEach(w=>{
+    const nw=normKey(w);
+    if(keys.some(k=>k===nw||k.includes(nw)||nw.includes(k)))score++;
+  });
+  if(type==='oriflame'){
+    if(keys.some(k=>['NO GUIA','WAYBILL NUMBER','GUIA'].includes(k)))score+=5;
+    if(keys.some(k=>['FECHA GUIA','AWB DATE','WAYBILL DATE'].includes(k)))score+=5;
+    if(keys.some(k=>k.includes('COD DISTR')||k==='SERVICE CENTRE'))score+=3;
+  }
+  if(type==='urbano'){
+    if(keys.some(k=>k==='CODIGO REFERENCIA'))score+=5;
+    if(keys.some(k=>k==='ESTADO ACTUAL'))score+=4;
+  }
+  if(type==='tc'){
+    if(keys.some(k=>k==='WAYBILL NUMBER'))score+=5;
+    if(keys.some(k=>k==='SOCIO'))score+=4;
+  }
+  return score
+}
+function rowsFromAOA(aoa,type=''){
+  aoa=(aoa||[]).filter(r=>Array.isArray(r)&&r.some(v=>norm(cleanCell(v))!==''));
+  if(!aoa.length)return[];
+
+  let best=0,bestScore=-1;
+  for(let i=0;i<Math.min(40,aoa.length);i++){
+    const s=headerScore(aoa[i],type);
+    if(s>bestScore){bestScore=s;best=i}
+  }
+  if(bestScore<=0)best=0;
+
+  const headers=(aoa[best]||[]).map((h,i)=>norm(cleanCell(h))||`COL_${i+1}`);
+  const rows=aoa.slice(best+1).filter(r=>r.some(v=>norm(cleanCell(v))!=='')).map(vals=>{
+    const obj={};
+    headers.forEach((h,i)=>{
+      let key=h;
+      if(Object.prototype.hasOwnProperty.call(obj,key))key=`${key}_${i+1}`;
+      obj[key]=cleanCell(vals[i]??'');
+    });
+    return obj;
+  });
+
+  rows.__headerRow=best+1;
+  rows.__headers=headers;
+  rows.__score=bestScore;
+  return rows
+}
 function parseDelimited(text,type=''){text=String(text||'').trim();if(!text)return[];const lines=text.split(/\r?\n/).filter(x=>x.trim()!=='');if(!lines.length)return[];const sample=lines.slice(0,8).join('\n');const delimiter=sample.includes('\t')?'\t':(sample.includes(';')?';':',');const parseLine=line=>{if(delimiter==='\t')return line.split('\t');let out=[],cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===delimiter&&!q){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out};return rowsFromAOA(lines.map(parseLine),type)}
 async function readFileRows(file,preferredSheet,type=''){
   if(!file)return[];
@@ -457,54 +532,78 @@ async function readFileRows(file,preferredSheet,type=''){
     const wb=XLSX.read(buf,{type:'array',cellDates:false});
     const prefs=(Array.isArray(preferredSheet)?preferredSheet:[preferredSheet]).filter(Boolean);
 
-    let bestName='';
-    let bestAOA=null;
-    let bestScore=-1;
+    let bestName='',bestRows=null,bestScore=-Infinity;
 
-    // First evaluate every sheet. This protects us when Oriflame changes
-    // the sheet name/order in a new workbook.
     for(const name of wb.SheetNames){
-      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{
-        header:1,
-        defval:'',
-        raw:true
-      });
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:true});
+      const rows=rowsFromAOA(aoa,type);
+      let score=Number(rows.__score||0);
 
-      let score=0;
-      for(let i=0;i<Math.min(30,aoa.length);i++){
-        score=Math.max(score,headerScore(aoa[i],type));
-      }
+      if(prefs.some(p=>normKey(p)===normKey(name)))score+=3;
+      if(type==='oriflame'&&['URBANO','BASE ORIFLAME','BASE','ORIFLAME'].includes(normKey(name)))score+=4;
+      if(type==='urbano'&&normKey(name).includes('URBANO DATA'))score+=4;
+      if(type==='tc'&&['TCII','TC III','TCIII','TC','TOTAL CONTROL'].includes(normKey(name)))score+=4;
 
-      // Small tie-break preference for familiar sheet names.
-      if(prefs.some(p=>normKey(p)===normKey(name)))score+=0.25;
-      if(type==='tc'&&normKey(name).startsWith('TC'))score+=0.15;
-      if(type==='urbano'&&normKey(name).includes('URBANO DATA'))score+=0.15;
+      score+=Math.min(rows.length,5000)/10000;
 
       if(score>bestScore){
-        bestScore=score;
-        bestName=name;
-        bestAOA=aoa;
+        bestScore=score;bestName=name;bestRows=rows;
       }
     }
 
-    // If no recognizable headers were found, fall back to first sheet.
-    if(!bestAOA){
-      bestName=wb.SheetNames[0];
-      bestAOA=XLSX.utils.sheet_to_json(wb.Sheets[bestName],{
-        header:1,
-        defval:'',
-        raw:true
-      });
-    }
-
-    const rows=rowsFromAOA(bestAOA,type);
-    rows.__sheetName=bestName;
-    return rows;
+    if(!bestRows)bestRows=[];
+    bestRows.__sheetName=bestName;
+    bestRows.__fileName=file.name;
+    bestRows.__score=bestScore;
+    return bestRows;
   }
 
   const raw=await file.text();
-  return parseDelimited(raw,type);
+  const rows=parseDelimited(raw,type);
+  rows.__fileName=file.name;
+  rows.__sheetName='CSV/TXT';
+  return rows;
 }
+
+function auditBaseRows(type,rows){
+  const total=rows?.length||0;
+  if(!total)return{total:0,valid:0,summary:'0 filas detectadas'};
+  const count=fn=>rows.reduce((a,r)=>a+(fn(r)?1:0),0);
+
+  if(type==='oriflame'){
+    const guide=count(r=>!!normGuide(get(r,'NO GUIA','NO GUÍA','GUIA','GUÍA','WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','AWB')));
+    const date=count(r=>!!isoDate(get(r,'FECHA GUIA','FECHA GUÍA','FECHA_GUIA','AWB_DATE','AWB DATE','WAYBILL_DATE','WAYBILL DATE')));
+    const cod=count(r=>!!norm(get(r,'COD DISTR.','COD DISTR','COD DISTRIBUIDOR','SERVICE_CENTRE','SERVICE CENTRE')));
+    const name=count(r=>!!norm(get(r,'NOMBRE DESTINATARIO','NOMBRE_DESTINATARIO','DESTINATARIO','CONSIGNEE')));
+    const address=count(r=>!!norm(get(r,'DIRECCION ENVIO','DIRECCIÓN ENVIO','DIRECCION DE ENTREGA','ADDRESS')));
+    const order=count(r=>!!norm(get(r,'NUMERO DE ORDEN','NÚMERO DE ORDEN','INVO_NUMBER','INVO NUMBER','ORDER_NUMBER')));
+    const city=count(r=>!!norm(get(r,'CIUDAD','CITY','PROVINCIA')));
+    const channel=count(r=>!!norm(get(r,'CANAL','CHANNEL'))||!!deriveChannel(get(r,'COD DISTR.','COD DISTR','COD DISTRIBUIDOR','SERVICE_CENTRE','SERVICE CENTRE')));
+    return{total,valid:Math.min(guide,date),summary:`Guía ${guide}/${total} · Fecha ${date}/${total} · Cod.Distr. ${cod}/${total} · Destinatario ${name}/${total} · Dirección ${address}/${total} · Orden ${order}/${total} · Ciudad ${city}/${total} · Canal ${channel}/${total}`};
+  }
+
+  if(type==='urbano'){
+    const ref=count(r=>!!normGuide(get(r,'CODIGO REFERENCIA','CÓDIGO REFERENCIA','NO GUIA','REFERENCIA')));
+    const wyb=count(r=>!!norm(get(r,'GUIA','GUÍA')));
+    const status=count(r=>!!norm(get(r,'ESTADO ACTUAL')));
+    const statusDate=count(r=>!!isoDate(get(r,'FECHA ESTADO')));
+    const visits=count(r=>norm(get(r,'NRO VISITAS','NUMERO VISITAS'))!=='');
+    return{total,valid:ref,summary:`Referencia ${ref}/${total} · WYB ${wyb}/${total} · Estado ${status}/${total} · Fecha estado ${statusDate}/${total} · Visitas ${visits}/${total}`};
+  }
+
+  const guide=count(r=>!!normGuide(get(r,'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','NO GUIA','GUIA','GUÍA','AWB')));
+  const socio=count(r=>!!norm(get(r,'SOCIO','CODIGO SOCIO','CÓDIGO SOCIO','CODIGO')));
+  const name=count(r=>!!norm(get(r,'NOMBRE_SOCIO','NOMBRE SOCIO','NOMBRE_CLIENTE','NOMBRE CLIENTE')));
+  const phone=count(r=>!!norm(get(r,'TELEFONO_SOCIO','TELEFONO SOCIO','CELULAR','TELEFONO_CLIENTE','TELEFONO')));
+  const ref=count(r=>!!norm(get(r,'REFERENCIAS','REFERENCIA')));
+  return{total,valid:guide,summary:`Guía ${guide}/${total} · Socio ${socio}/${total} · Nombre ${name}/${total} · Celular ${phone}/${total} · Referencia ${ref}/${total}`};
+}
+function auditText(type,rows){
+  const a=auditBaseRows(type,rows);
+  const sheet=rows?.__sheetName?` · Hoja: ${rows.__sheetName}`:'';
+  return `${rows?.__fileName||'Datos'}${sheet} · ${a.total} filas · ${a.summary}`;
+}
+
 function sourceRows(type){const ta={oriflame:'pasteOriflame',urbano:'pasteUrbano',tc:'pasteTC'}[type];const txt=$(ta).value.trim();if(txt)return parseDelimited(txt,type);return staged[type]||[]}
 
 function addMonthsToSelect(){
@@ -587,309 +686,243 @@ function bindRowEvents(){
   });
 }
 async function processOriflame(){
+  const btn=$('processOriflame');
   const rows=sourceRows('oriflame');
-  if(!rows.length)return toast('No hay datos para procesar.','warn');
+  if(!rows.length)return toast('No hay Base Oriflame para procesar.','warn');
 
-  snapshotBeforeLoad();
+  const audit=auditBaseRows('oriflame',rows);
+  if(!audit.valid)return toast(`No puedo procesar: no detecté Guía + Fecha guía. ${audit.summary}`,'bad');
 
-  let created=0,updated=0,skipped=0,noDate=0;
-  const touched=new Set();
-  const by=new Map(state.orders.map(o=>[normGuide(o.guide),o]));
-
-  for(const r of rows){
-    const guide=normGuide(get(
-      r,
-      'NO GUIA','NO GUÍA','GUIA','GUÍA',
-      'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL',
-      'NRO GUIA','NRO GUÍA','NUMERO GUIA','NÚMERO GUIA','AWB'
-    ));
-
-    if(!guide){
-      skipped++;
-      continue;
-    }
-
-    let o=by.get(guide);
-
-    const incomingGuideDate=isoDate(get(
-      r,
-      'FECHA GUIA','FECHA GUÍA','FECHA_GUIA',
-      'AWB_DATE','AWB DATE',
-      'WAYBILL_DATE','WAYBILL DATE',
-      'FECHA DESPACHO','FECHA DE GUIA','FECHA DE GUÍA'
-    ));
-
-    // New orders need a guide date so we can save them under YYYY-MM.
-    if(!o&&!incomingGuideDate){
-      noDate++;
-      continue;
-    }
-
-    const fresh={
-      guide,
-      guideDate:incomingGuideDate||o?.guideDate||'',
-      codDist:norm(get(
-        r,
-        'COD DISTR.','COD DISTR','COD. DISTR.',
-        'COD DISTRIBUIDOR','CODIGO DISTRIBUIDOR','CÓDIGO DISTRIBUIDOR',
-        'SERVICE_CENTRE','SERVICE CENTRE'
-      )),
-      recipient:norm(get(
-        r,
-        'NOMBRE DESTINATARIO','NOMBRE_DESTINATARIO',
-        'DESTINATARIO','CONSIGNEE','NOMBRE CLIENTE'
-      )),
-      address:norm(get(
-        r,
-        'DIRECCION ENVIO','DIRECCIÓN ENVIO','DIRECCION DE ENTREGA',
-        'DIRECCIÓN DE ENTREGA','ADDRESS','DIRECCION'
-      )),
-      barrio:norm(get(r,'BARRIO','SECTOR')),
-      phone1:norm(get(
-        r,
-        'TELEFONO 1','TELÉFONO 1','TELEFONO1','CELULAR','TELEFONO'
-      )),
-      phone2:norm(get(
-        r,
-        'TELEFONO 2','TELÉFONO 2','TELEFONO2'
-      )),
-      order:norm(get(
-        r,
-        'NUMERO DE ORDEN','NÚMERO DE ORDEN',
-        'INVO_NUMBER','INVO NUMBER',
-        'ORDER_NUMBER','ORDER NUMBER','ORDEN'
-      )),
-      orderDate:isoDate(get(
-        r,
-        'ORDER DATE','ORDER_DATE','FECHA_PEDIDO','FECHA PEDIDO'
-      )),
-      province:norm(get(r,'PROVINCIA','PROVINCE')),
-      city:norm(get(r,'CIUDAD','CITY')),
-      weight:norm(get(r,'PESO','WEIGHT')),
-      packages:norm(get(r,'BULTOS','PIEZAS','PACKAGES')),
-      declaredValue:norm(get(r,'VALOR DECLARADO','DECLARED VALUE')),
-      promiseDate:isoDate(get(
-        r,
-        'PROMESA DE ENTREGA','FECHA PROMESA','PROMISE DATE'
-      )),
-      courier:norm(get(r,'COURIER','TRANSPORTISTA'))||'URBANO'
-    };
-
-    fresh.channel=deriveChannel(fresh.codDist)||norm(get(r,'CANAL','CHANNEL'));
-
-    const legacy={
-      deliveryDate:isoDate(get(r,'FECHA DE ENTREGA17','FECHA DE ENTREGA')),
-      status:normalizeStatus(get(r,'RESULTADO VISITA 120','STATUS URBANO')),
-      statusDetail:norm(get(r,'DETALLE DE ESTADO 16','DETALLE STATUS')),
-      wyb:norm(get(r,'WYB2','WYB URBANO','GUIA URBANO','GUÍA URBANO')),
-      arrivedPup:isoDate(get(r,'ARRIBO PUP','ARRIBO DESTINO')),
-      claim:norm(get(r,'CLASIFICACION/CLAIMS','CLASIFICACIÓN/CLAIMS')).toUpperCase(),
-      management:norm(get(r,'GESTION','GESTIÓN')),
-      responsible:norm(get(r,'RESPONSABLE')),
-      socio:norm(get(r,'CODIGO','CODIGO SOCIO','CÓDIGO SOCIO')),
-      memberName:norm(get(r,'NOMBRE','NOMBRE SOCIO')),
-      reference:norm(get(r,'REFERENCIA')),
-      phone:norm(get(r,'CELULAR'))
-    };
-
-    if(!o){
-      o={
-        ...fresh,
-        status:legacy.status||'',
-        statusDetail:legacy.statusDetail||'',
-        statusDate:'',
-        visits:0,
-        wyb:legacy.wyb||'',
-        arrivedPup:legacy.arrivedPup||'',
-        deliveryDate:legacy.deliveryDate||'',
-        requirement:'',
-        requirementDate:'',
-        claim:legacy.claim||'',
-        management:legacy.management||'',
-        responsible:legacy.responsible||'',
-        socio:legacy.socio||'',
-        memberName:legacy.memberName||'',
-        reference:legacy.reference||'',
-        phone:legacy.phone||''
-      };
-      state.orders.push(o);
-      by.set(guide,o);
-      created++;
-    }else{
-      for(const [k,v] of Object.entries(fresh)){
-        if(norm(v)!=='')o[k]=v;
-      }
-      for(const [k,v] of Object.entries(legacy)){
-        if(norm(v)!==''&&!norm(o[k]))o[k]=v;
-      }
-      updated++;
-    }
-
-    const m=monthKey(o.guideDate);
-    if(m)touched.add(m);
-  }
-
-  state.lastLoads.oriflame=new Date().toISOString();
-  saveState();
-
-  staged.oriflame=null;
-  $('pasteOriflame').value='';
-  $('fileOriflame').value='';
-
-  refreshAll();
-
-  if(!created&&!updated){
-    return toast(`Base Oriflame sin pedidos válidos${noDate?` · ${noDate} sin FECHA GUIA`:''}${skipped?` · ${skipped} sin guía`:''}.`,'bad');
-  }
-
-  const localMsg=`Base Oriflame: ${created} nuevos · ${updated} actualizados${noDate?` · ${noDate} sin fecha`:''}${skipped?` · ${skipped} omitidos`:''}.`;
+  const oldLabel=btn.textContent;
+  btn.disabled=true;btn.textContent='Procesando...';
 
   try{
-    if(!window.UrbanoFirebase){
-      throw new Error('Firebase todavía no está inicializado.');
+    snapshotBeforeLoad();
+
+    let created=0,updated=0,skipped=0,noDate=0;
+    const touched=new Set();
+    const by=new Map(state.orders.map(o=>[normGuide(o.guide),o]));
+
+    for(const r of rows){
+      const guide=normGuide(get(r,'NO GUIA','NO GUÍA','GUIA','GUÍA','WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','NRO GUIA','NRO GUÍA','NUMERO GUIA','NÚMERO GUIA','AWB'));
+      if(!guide){skipped++;continue}
+
+      let o=by.get(guide);
+      const incomingGuideDate=isoDate(get(r,'FECHA GUIA','FECHA GUÍA','FECHA_GUIA','AWB_DATE','AWB DATE','WAYBILL_DATE','WAYBILL DATE','FECHA DESPACHO','FECHA DE GUIA','FECHA DE GUÍA'));
+      if(!o&&!incomingGuideDate){noDate++;continue}
+
+      const fresh={
+        guide,
+        guideDate:incomingGuideDate||o?.guideDate||'',
+        codDist:norm(get(r,'COD DISTR.','COD DISTR','COD. DISTR.','COD DISTRIBUIDOR','CODIGO DISTRIBUIDOR','CÓDIGO DISTRIBUIDOR','SERVICE_CENTRE','SERVICE CENTRE')),
+        recipient:norm(get(r,'NOMBRE DESTINATARIO','NOMBRE_DESTINATARIO','DESTINATARIO','CONSIGNEE','NOMBRE CLIENTE')),
+        address:norm(get(r,'DIRECCION ENVIO','DIRECCIÓN ENVIO','DIRECCION DE ENTREGA','DIRECCIÓN DE ENTREGA','ADDRESS','DIRECCION')),
+        barrio:norm(get(r,'BARRIO','SECTOR')),
+        phone1:norm(get(r,'TELEFONO 1','TELÉFONO 1','TELEFONO1','CELULAR','TELEFONO')),
+        phone2:norm(get(r,'TELEFONO 2','TELÉFONO 2','TELEFONO2')),
+        order:norm(get(r,'NUMERO DE ORDEN','NÚMERO DE ORDEN','INVO_NUMBER','INVO NUMBER','ORDER_NUMBER','ORDER NUMBER','ORDEN')),
+        orderDate:isoDate(get(r,'ORDER DATE','ORDER_DATE','FECHA_PEDIDO','FECHA PEDIDO')),
+        province:norm(get(r,'PROVINCIA','PROVINCE')),
+        city:norm(get(r,'CIUDAD','CITY')),
+        weight:norm(get(r,'PESO','WEIGHT')),
+        packages:norm(get(r,'BULTOS','PIEZAS','PACKAGES')),
+        declaredValue:norm(get(r,'VALOR DECLARADO','DECLARED VALUE')),
+        promiseDate:isoDate(get(r,'PROMESA DE ENTREGA','FECHA PROMESA','PROMISE DATE')),
+        courier:norm(get(r,'COURIER','TRANSPORTISTA'))||'URBANO'
+      };
+
+      fresh.channel=norm(get(r,'CANAL','CHANNEL'))||deriveChannel(fresh.codDist);
+
+      const legacy={
+        deliveryDate:isoDate(get(r,'FECHA DE ENTREGA17','FECHA DE ENTREGA','FECHA ENTREGA')),
+        status:normalizeStatus(get(r,'RESULTADO VISITA 120','ESTADO ACTUAL15','ESTADO ACTUAL','STATUS URBANO')),
+        statusDetail:norm(get(r,'DETALLE DE ESTADO 16','DETALLE STATUS','DETALLE ESTADO')),
+        wyb:norm(get(r,'WYB2','WYB URBANO','GUIA URBANO','GUÍA URBANO')),
+        arrivedPup:isoDate(get(r,'FECHA ARRIBO PUP 13','ARRIBO PUP','ARRIBO DESTINO')),
+        claim:norm(get(r,'CLASIFICACION/CLAIMS','CLASIFICACIÓN/CLAIMS')).toUpperCase(),
+        management:norm(get(r,'GESTION','GESTIÓN')),
+        responsible:norm(get(r,'RESPONSABLE')),
+        socio:norm(get(r,'CODIGO','CÓDIGO','CODIGO SOCIO','CÓDIGO SOCIO')),
+        memberName:norm(get(r,'NOMBRE','NOMBRE SOCIO')),
+        reference:norm(get(r,'REFERENCIA','REFERENCIAS')),
+        phone:norm(get(r,'CELULAR','TELEFONO SOCIO','TELÉFONO SOCIO'))
+      };
+
+      if(!o){
+        o={...fresh,status:legacy.status||'',statusDetail:legacy.statusDetail||'',statusDate:'',visits:0,wyb:legacy.wyb||'',arrivedPup:legacy.arrivedPup||'',deliveryDate:legacy.deliveryDate||'',requirement:'',requirementDate:'',claim:legacy.claim||'',management:legacy.management||'',responsible:legacy.responsible||'',socio:legacy.socio||'',memberName:legacy.memberName||'',reference:legacy.reference||'',phone:legacy.phone||''};
+        state.orders.push(o);by.set(guide,o);created++;
+      }else{
+        for(const [k,v] of Object.entries(fresh))if(norm(v)!=='')o[k]=v;
+        for(const [k,v] of Object.entries(legacy)){
+          if(norm(v)==='')continue;
+          if(['management','claim','responsible'].includes(k)){if(!norm(o[k]))o[k]=v}
+          else o[k]=v;
+        }
+        updated++;
+      }
+
+      const m=monthKey(o.guideDate);
+      if(m)touched.add(m);
     }
 
+    state.lastLoads.oriflame=new Date().toISOString();
+    saveState();refreshAll();
+
+    if(!created&&!updated){
+      toast(`Sin pedidos válidos · ${noDate} sin fecha · ${skipped} sin guía.`,'bad');
+      return;
+    }
+    if(!touched.size)throw new Error('No se detectó un mes válido.');
+
+    if(!window.UrbanoFirebase)throw new Error('Firebase no está inicializado.');
+    await window.UrbanoFirebase.ensureAuthReady();
     await window.UrbanoFirebase.syncMonths([...touched]);
 
-    toast(`${localMsg} Firebase actualizado.`);
+    const msg=`Base Oriflame: ${created} nuevos · ${updated} actualizados · Firebase actualizado.`;
+    $('lastOriflame').innerHTML=`<strong>Última carga:</strong> ${new Date().toLocaleString('es-EC')}<br>${esc(msg)}<br><span>${esc(audit.summary)}</span>`;
+    toast(msg);
   }catch(error){
-    console.error('Falló sincronización de Base Oriflame:',error);
-    const code=String(error?.code||error?.message||'');
-    toast(`${localMsg} No se pudo sincronizar Firebase: ${code||'error'}.`,'bad');
+    console.error('Base Oriflame:',error);
+    toast(`La base se procesó, pero Firebase falló: ${String(error?.code||error?.message||'error')}`,'bad');
+  }finally{
+    btn.disabled=false;btn.textContent=oldLabel;
   }
 }
-function processUrbano(){
+async function processUrbano(){
+  const btn=$('processUrbano');
   const rows=sourceRows('urbano');
   if(!rows.length)return toast('No hay URBANO DATA para procesar.','warn');
-  snapshotBeforeLoad();
-  const by=new Map(state.orders.map(o=>[normGuide(o.guide),o]));
-  const touched=new Set();
-  let matched=0,notFound=0,delivered=0;
-  for(const r of rows){
-    const ref=normGuide(get(r,'CODIGO REFERENCIA','CÓDIGO REFERENCIA','NO GUIA','REFERENCIA'));
-    const o=by.get(ref);
-    if(!o){notFound++;continue}
-    matched++;
-    const status=normalizeStatus(get(r,'ESTADO ACTUAL'));
-    const detail=norm(get(r,'DETALLE ESTADO'));
-    const statusDate=isoDate(get(r,'FECHA ESTADO'));
-    const visits=Math.max(0,Math.round(num(get(r,'NRO VISITAS','NUMERO VISITAS'))));
-    const wyb=norm(get(r,'GUIA'));
-    const arrived=isoDate(get(r,'ARRIBO DESTINO'));
-    const reqCount=num(get(r,'REQUERIMIENTOS'));
-    const reqReason=norm(get(r,'MOTIVO REQUERIMIENTO'));
-    const reqDate=isoDate(get(r,'FECHA REQUERIMIENTO'));
-    if(status)o.status=status;
-    if(detail)o.statusDetail=detail;
-    if(statusDate)o.statusDate=statusDate;
-    if(Number.isFinite(visits))o.visits=visits;
-    if(wyb)o.wyb=wyb;
-    if(o.channel==='PUP'&&arrived)o.arrivedPup=arrived;
-    if(reqCount>0||reqReason)o.requirement=reqReason||`${reqCount} requerimiento(s)`;
-    if(reqDate)o.requirementDate=reqDate;
-    if(status.includes('ENTREGADO')&&!o.deliveryDate){
-      o.deliveryDate=statusDate||arrived||isoDate(new Date()); delivered++;
-    }
-    const m=monthKey(o.guideDate); if(m)touched.add(m);
-  }
-  state.lastLoads.urbano=new Date().toISOString(); saveState();
-  staged.urbano=null; $('pasteUrbano').value=''; $('fileUrbano').value='';
-  toast(`Urbano actualizado: ${matched} coincidencias · ${notFound} sin pedido activo · ${delivered} nuevas entregas.`);
-  refreshAll();
-  window.UrbanoFirebase?.syncMonths([...touched]).catch(()=>{});
-}
 
-function processTC(){
+  const audit=auditBaseRows('urbano',rows);
+  const oldLabel=btn.textContent;
+  btn.disabled=true;btn.textContent='Procesando...';
+
+  try{
+    snapshotBeforeLoad();
+    const by=new Map(state.orders.map(o=>[normGuide(o.guide),o]));
+    const touched=new Set();
+    let matched=0,notFound=0,delivered=0;
+
+    for(const r of rows){
+      const ref=normGuide(get(r,'CODIGO REFERENCIA','CÓDIGO REFERENCIA','NO GUIA','REFERENCIA'));
+      const o=by.get(ref);
+      if(!o){notFound++;continue}
+      matched++;
+
+      const status=normalizeStatus(get(r,'ESTADO ACTUAL'));
+      const detail=norm(get(r,'DETALLE ESTADO'));
+      const statusDate=isoDate(get(r,'FECHA ESTADO'));
+      const visits=Math.max(0,Math.round(num(get(r,'NRO VISITAS','NUMERO VISITAS'))));
+      const wyb=norm(get(r,'GUIA','GUÍA'));
+      const arrived=isoDate(get(r,'ARRIBO DESTINO'));
+      const reqCount=num(get(r,'REQUERIMIENTOS'));
+      const reqReason=norm(get(r,'MOTIVO REQUERIMIENTO'));
+      const reqDate=isoDate(get(r,'FECHA REQUERIMIENTO'));
+
+      if(status)o.status=status;
+      if(detail)o.statusDetail=detail;
+      if(statusDate)o.statusDate=statusDate;
+      o.visits=visits;
+      if(wyb)o.wyb=wyb;
+      if(o.channel==='PUP'&&arrived)o.arrivedPup=arrived;
+      if(reqCount>0||reqReason)o.requirement=reqReason||`${reqCount} requerimiento(s)`;
+      if(reqDate)o.requirementDate=reqDate;
+
+      if(status.includes('ENTREGADO')){
+        const delivery=statusDate||arrived;
+        if(delivery&&o.deliveryDate!==delivery){
+          if(!o.deliveryDate)delivered++;
+          o.deliveryDate=delivery;
+        }
+      }
+
+      const m=monthKey(o.guideDate);
+      if(m)touched.add(m);
+    }
+
+    state.lastLoads.urbano=new Date().toISOString();
+    saveState();refreshAll();
+
+    if(window.UrbanoFirebase&&touched.size){
+      await window.UrbanoFirebase.ensureAuthReady();
+      await window.UrbanoFirebase.syncMonths([...touched]);
+    }
+
+    const msg=`Urbano: ${matched} coincidencias · ${notFound} sin cruce · ${delivered} nuevas entregas · Firebase actualizado.`;
+    $('lastUrbano').innerHTML=`<strong>Última carga:</strong> ${new Date().toLocaleString('es-EC')}<br>${esc(msg)}<br><span>${esc(audit.summary)}</span>`;
+    toast(msg);
+  }catch(error){
+    console.error('Base Urbano:',error);
+    toast(`Urbano procesado con error de sincronización: ${String(error?.code||error?.message||'error')}`,'bad');
+  }finally{
+    btn.disabled=false;btn.textContent=oldLabel;
+  }
+}
+async function processTC(){
+  const btn=$('processTC');
   const rows=sourceRows('tc');
   if(!rows.length)return toast('No hay Total Control / TCII / TCIII para procesar.','warn');
 
-  snapshotBeforeLoad();
+  const audit=auditBaseRows('tc',rows);
+  const oldLabel=btn.textContent;
+  btn.disabled=true;btn.textContent='Procesando...';
 
-  const byGuide=new Map();
-  const byOrder=new Map();
-  state.orders.forEach(o=>{
-    const g=normGuide(o.guide);
-    const ord=normGuide(o.order);
-    if(g)byGuide.set(g,o);
-    if(ord)byOrder.set(ord,o);
-  });
+  try{
+    snapshotBeforeLoad();
+    const byGuide=new Map(),byOrder=new Map();
 
-  const touched=new Set();
-  let matched=0, agencyMatched=0, notFound=0;
+    state.orders.forEach(o=>{
+      const g=normGuide(o.guide),ord=normGuide(o.order);
+      if(g)byGuide.set(g,o);
+      if(ord)byOrder.set(ord,o);
+    });
 
-  for(const r of rows){
-    const guide=normGuide(get(
-      r,
-      'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL',
-      'NO GUIA','NO. GUIA','NRO GUIA','NUMERO GUIA','NÚMERO GUIA',
-      'GUIA','GUÍA','AWB'
-    ));
+    const touched=new Set();
+    let matched=0,agencyMatched=0,notFound=0;
 
-    const invoice=normGuide(get(
-      r,
-      'INVO_NUMBER','INVO NUMBER',
-      'NUMERO DE ORDEN','NÚMERO DE ORDEN',
-      'ORDER_NUMBER','ORDER NUMBER',
-      'FACTURA','NUMERO FACTURA','NÚMERO FACTURA'
-    ));
+    for(const r of rows){
+      const guide=normGuide(get(r,'WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','NO GUIA','NO. GUIA','NRO GUIA','NUMERO GUIA','NÚMERO GUIA','GUIA','GUÍA','AWB'));
+      const invoice=normGuide(get(r,'INVO_NUMBER','INVO NUMBER','NUMERO DE ORDEN','NÚMERO DE ORDEN','ORDER_NUMBER','ORDER NUMBER','FACTURA','NUMERO FACTURA','NÚMERO FACTURA'));
 
-    let o=guide?byGuide.get(guide):null;
-    if(!o&&invoice)o=byOrder.get(invoice);
+      let o=guide?byGuide.get(guide):null;
+      if(!o&&invoice)o=byOrder.get(invoice);
+      if(!o){notFound++;continue}
+      matched++;
 
-    if(!o){
-      notFound++;
-      continue;
+      const socio=norm(get(r,'SOCIO','CODIGO SOCIO','CÓDIGO SOCIO','COD SOCIO','CODIGO','CÓDIGO','MEMBER NUMBER','MEMBER_NUMBER'));
+      const name=norm(get(r,'NOMBRE_SOCIO','NOMBRE SOCIO','NOMBRE_CLIENTE','NOMBRE CLIENTE','SOCIO NOMBRE','NOMBRE','MEMBER NAME','MEMBER_NAME'));
+      const phone=norm(get(r,'TELEFONO_SOCIO','TELEFONO SOCIO','TELÉFONO SOCIO','CELULAR','CELULAR SOCIO','TELEFONO_CLIENTE','TELEFONO CLIENTE','TELEFONO','TELÉFONO','PHONE','MOBILE'));
+      const ref=norm(get(r,'REFERENCIAS','REFERENCIA','REFERENCE','REFERENCES'));
+
+      if(socio)o.socio=socio;
+      if(name)o.memberName=name;
+      if(phone)o.phone=phone;
+      if(ref)o.reference=ref;
+
+      const cod=Number(String(o.codDist||'').replace(/\.0$/,'').trim());
+      if(Number.isFinite(cod)&&cod>=9000&&cod<=9100)agencyMatched++;
+
+      const m=monthKey(o.guideDate);
+      if(m)touched.add(m);
     }
 
-    matched++;
+    state.lastLoads.tc=new Date().toISOString();
+    saveState();refreshAll();
 
-    const socio=norm(get(
-      r,
-      'SOCIO','CODIGO SOCIO','CÓDIGO SOCIO','COD SOCIO',
-      'CODIGO','CÓDIGO','MEMBER NUMBER','MEMBER_NUMBER'
-    ));
+    if(window.UrbanoFirebase&&touched.size){
+      await window.UrbanoFirebase.ensureAuthReady();
+      await window.UrbanoFirebase.syncMonths([...touched]);
+    }
 
-    const name=norm(get(
-      r,
-      'NOMBRE_SOCIO','NOMBRE SOCIO',
-      'NOMBRE_CLIENTE','NOMBRE CLIENTE',
-      'SOCIO NOMBRE','NOMBRE',
-      'MEMBER NAME','MEMBER_NAME'
-    ));
-
-    const phone=norm(get(
-      r,
-      'TELEFONO_SOCIO','TELEFONO SOCIO','TELÉFONO SOCIO',
-      'CELULAR','CELULAR SOCIO',
-      'TELEFONO_CLIENTE','TELEFONO CLIENTE',
-      'TELEFONO','TELÉFONO','PHONE','MOBILE'
-    ));
-
-    const ref=norm(get(r,'REFERENCIAS','REFERENCIA','REFERENCE','REFERENCES'));
-
-    if(socio)o.socio=socio;
-    if(name)o.memberName=name;
-    if(phone)o.phone=phone;
-    if(ref)o.reference=ref;
-
-    const cod=Number(String(o.codDist||'').replace(/\.0$/,'').trim());
-    if(Number.isFinite(cod)&&cod>=9000&&cod<=9100)agencyMatched++;
-
-    const m=monthKey(o.guideDate);
-    if(m)touched.add(m);
+    const msg=`TCII/TCIII: ${matched} coincidencias · ${agencyMatched} agencias enriquecidas · ${notFound} sin cruce · Firebase actualizado.`;
+    $('lastTC').innerHTML=`<strong>Última carga:</strong> ${new Date().toLocaleString('es-EC')}<br>${esc(msg)}<br><span>${esc(audit.summary)}</span>`;
+    toast(msg);
+  }catch(error){
+    console.error('TCII/TCIII:',error);
+    toast(`TCII/TCIII procesado con error de sincronización: ${String(error?.code||error?.message||'error')}`,'bad');
+  }finally{
+    btn.disabled=false;btn.textContent=oldLabel;
   }
-
-  state.lastLoads.tc=new Date().toISOString();
-  saveState();
-
-  staged.tc=null;
-  $('pasteTC').value='';
-  $('fileTC').value='';
-
-  toast(`TCII/TCIII: ${matched} coincidencias · ${agencyMatched} agencias enriquecidas · ${notFound} sin cruce.`);
-  refreshAll();
-
-  window.UrbanoFirebase?.syncMonths([...touched]).catch(()=>{});
 }
 function openModal(guide){const o=state.orders.find(x=>x.guide===guide);if(!o)return;modalGuide=guide;$('modalTitle').textContent=`Gestión · ${o.guide}`;$('modalManagement').value=o.management||'';$('orderModal').classList.add('show')}
 function closeModal(){$('orderModal').classList.remove('show');modalGuide=null}
@@ -1044,7 +1077,31 @@ function refreshLastLoads(){for(const [k,id] of [['oriflame','lastOriflame'],['u
 function refreshStorageInfo(){const kb=new Blob([JSON.stringify(state)]).size/1024;$('storageInfo').textContent=`${state.orders.length} pedidos · ${kb.toFixed(1)} KB de almacenamiento local.`}
 function refreshAll(){renderOrders();renderDashboard();renderSettings();refreshLastLoads();refreshStorageInfo()}
 function switchPage(page){$$('.page').forEach(x=>x.classList.remove('active'));$('page-'+page).classList.add('active');$$('.nav-btn').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('topTitle').textContent={pedidos:'Pedidos · Urbano',dashboard:'Dashboard · Urbano',bases:'Pegar bases · Urbano',config:'Configuración · Urbano'}[page];$('sidebar').classList.remove('open');if(page==='dashboard')renderDashboard()}
-async function stageFile(type,file,preferred,labelEl){try{const rows=await readFileRows(file,preferred,type);staged[type]=rows;$(labelEl).textContent=`Archivo listo: ${file.name} · ${rows.length} filas detectadas.`;toast(`${file.name}: ${rows.length} filas listas para procesar.`)}catch(e){console.error(e);toast('No pude leer el archivo. También puedes pegar los datos desde Excel.','bad')}}
+async function stageFile(type,file,preferred,labelEl){
+  if(!file)return;
+  try{
+    const rows=await readFileRows(file,preferred,type);
+    staged[type]=rows;
+    const audit=auditBaseRows(type,rows);
+
+    $(labelEl).innerHTML=`<strong>Archivo listo:</strong> ${esc(file.name)}<br><span>${esc(auditText(type,rows))}</span>`;
+
+    if(!audit.total){
+      toast(`${file.name}: no encontré filas válidas.`,'bad');
+      return;
+    }
+    if(type==='oriflame'&&audit.valid===0){
+      toast(`${file.name}: no detecté Guía + Fecha guía.`,'bad');
+      return;
+    }
+    toast(`${file.name}: ${audit.total} filas detectadas · ${rows.__sheetName||'hoja detectada'}.`);
+  }catch(e){
+    console.error(e);
+    staged[type]=null;
+    $(labelEl).textContent='No pude leer el archivo.';
+    toast(`No pude leer ${file.name}. Revisa el formato/encabezados.`,'bad');
+  }
+}
 function exportOrders(){const arr=filteredOrders().map(o=>({'NO GUIA':o.guide,'GUIA URBANO':o.wyb,'FECHA GUIA':fmtDate(o.guideDate),'NUMERO DE ORDEN':o.order,'COD DISTR.':o.codDist,'CANAL':o.channel,'PROVINCIA':o.province,'DESTINATARIO':o.recipient,'ESTADO':normalizeStatus(o.status)||deliveredState(o),'VISITAS':o.visits,'FECHA ENTREGA':fmtDate(o.deliveryDate),'DIAS':orderDays(o)??'','CLASIFICACION/CLAIMS':o.claim,'GESTION':o.management,'CODIGO SOCIO':o.socio,'NOMBRE SOCIO':o.memberName,'REFERENCIA':o.reference,'CELULAR':o.phone}));if(!arr.length)return toast('No hay pedidos para exportar.','warn');if(window.XLSX){const ws=XLSX.utils.json_to_sheet(arr),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'URBANO');XLSX.writeFile(wb,`URBANO_GESTION_${isoDate(new Date())}.xlsx`)}else{const keys=Object.keys(arr[0]||{});const csv=[keys.join(';'),...arr.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(';'))].join('\n');downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),`URBANO_GESTION_${isoDate(new Date())}.csv`)}}
 function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 function backup(){downloadBlob(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),`respaldo_urbano_${isoDate(new Date())}.json`)}
