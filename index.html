@@ -286,8 +286,24 @@ th.sortable.active-sort .sort-indicator{color:#A71920;font-weight:900}
 .last-load span{color:#717782}
 button:disabled{opacity:.6;cursor:not-allowed}
 </style>
+
+<style id="import-issues-style">
+.import-issues-btn{margin-left:7px}
+.import-issues-btn.has-issues{border-color:#E6A0A4;background:#FFF3F4;color:#A71920}
+.import-issues-btn:disabled{opacity:.45;cursor:not-allowed}
+.import-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}
+.import-summary-card{border:1px solid #E2E5E9;border-radius:10px;padding:11px;background:#FAFAFB}
+.import-summary-card label{display:block;font-size:9px;text-transform:uppercase;font-weight:900;color:#707781;margin-bottom:4px}
+.import-summary-card strong{font-size:19px}
+.import-issues-table{width:100%;border-collapse:collapse;font-size:11px}
+.import-issues-table th,.import-issues-table td{border-bottom:1px solid #E7E9ED;padding:8px;text-align:left;vertical-align:top}
+.import-issues-table th{background:#F7F8FA;position:sticky;top:0;font-size:9px;text-transform:uppercase}
+.issue-bad{color:#B42318;font-weight:800}.issue-dup{color:#8A6200;font-weight:800}
+.issue-empty{padding:28px;text-align:center;color:#6B7280}
+@media(max-width:700px){.import-summary{grid-template-columns:1fr}}
+</style>
 </head>
-<body data-app-version="import-audit-v1">
+<body data-app-version="carga-robusta-v1">
 
 
 
@@ -347,7 +363,7 @@ button:disabled{opacity:.6;cursor:not-allowed}
       <section class="page" id="page-bases">
         <div class="section-head"><div><h2>Pegar bases</h2></div><div class="actions"><button class="btn" id="undoLastLoad">↶ Deshacer última carga</button></div></div>
         <div class="card"><div class="tabs"><button class="tab active" data-tab="oriflame">1. Base Oriflame</button><button class="tab" data-tab="urbano">2. Base Urbano</button><button class="tab" data-tab="tc">3. Total Control / TCIII</button></div>
-          <div class="base-panel active" id="tab-oriflame"><div class="base-grid"><div><textarea class="paste-box" id="pasteOriflame" placeholder="Pega aquí encabezados + filas desde Excel..."></textarea></div><div class="upload-zone"><h4>Archivo Excel</h4><input class="file-input" type="file" id="fileOriflame" accept=".xlsx,.xls,.xlsm,.csv,.txt"><div class="last-load" id="lastOriflame">Sin cargas registradas.</div><div style="margin-top:12px"><button class="btn primary" id="processOriflame">Procesar Base Oriflame</button></div></div></div></div>
+          <div class="base-panel active" id="tab-oriflame"><div class="base-grid"><div><textarea class="paste-box" id="pasteOriflame" placeholder="Pega aquí encabezados + filas desde Excel..."></textarea></div><div class="upload-zone"><h4>Archivo Excel</h4><input class="file-input" type="file" id="fileOriflame" accept=".xlsx,.xls,.xlsm,.csv,.txt"><div class="last-load" id="lastOriflame">Sin cargas registradas.</div><div style="margin-top:12px"><button class="btn primary" id="processOriflame">Procesar Base Oriflame</button><button class="btn import-issues-btn" id="viewOriflameIssues" disabled>Ver incidencias (0)</button></div></div></div></div>
           <div class="base-panel" id="tab-urbano"><div class="base-grid"><div><textarea class="paste-box" id="pasteUrbano" placeholder="Pega aquí URBANO DATA..."></textarea></div><div class="upload-zone"><h4>Archivo Urbano</h4><input class="file-input" type="file" id="fileUrbano" accept=".xlsx,.xls,.xlsm,.csv,.txt"><div class="last-load" id="lastUrbano">Sin cargas registradas.</div><div style="margin-top:12px"><button class="btn primary" id="processUrbano">Actualizar status Urbano</button></div></div></div></div>
           <div class="base-panel" id="tab-tc"><div class="base-grid"><div><textarea class="paste-box" id="pasteTC" placeholder="Pega aquí Total Control..."></textarea></div><div class="upload-zone"><h4>Archivo Total Control / TCIII</h4><input class="file-input" type="file" id="fileTC" accept=".xlsx,.xls,.xlsm,.csv,.txt"><div class="last-load" id="lastTC">Sin cargas registradas.</div><div style="margin-top:12px"><button class="btn primary" id="processTC">Procesar TC / TCIII</button></div></div></div></div>
         </div>
@@ -365,6 +381,33 @@ button:disabled{opacity:.6;cursor:not-allowed}
       </section>
     </div>
   </main>
+</div>
+
+
+<div class="modal-backdrop" id="importIssuesModal">
+  <div class="modal" style="width:min(980px,96vw)">
+    <div class="modal-head">
+      <h3>Incidencias de carga · Base Oriflame</h3>
+      <button class="modal-close" id="importIssuesClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="import-summary">
+        <div class="import-summary-card"><label>No cargados</label><strong id="issueRejectedCount">0</strong></div>
+        <div class="import-summary-card"><label>Duplicados en archivo</label><strong id="issueDuplicateCount">0</strong></div>
+        <div class="import-summary-card"><label>Actualizados existentes</label><strong id="issueUpdatedCount">0</strong></div>
+      </div>
+      <div style="max-height:55vh;overflow:auto;border:1px solid #E2E5E9;border-radius:10px">
+        <table class="import-issues-table">
+          <thead><tr><th>Fila</th><th>Guía</th><th>Orden</th><th>Tipo</th><th>Motivo</th><th>Acción</th></tr></thead>
+          <tbody id="importIssuesBody"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="exportOriflameIssues">⬇ Excel incidencias</button>
+        <button class="btn primary" id="importIssuesOk">Cerrar</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="orderModal"><div class="modal management-modal"><div class="modal-head"><h3 id="modalTitle">Gestión del pedido</h3><button class="modal-close" id="modalClose">×</button></div><div class="modal-body"><div class="field"><label>Gestión / Comentario</label><textarea class="textarea" id="modalManagement" placeholder="Escribe aquí la gestión realizada..."></textarea></div><div class="modal-actions"><button class="btn" id="modalCancel">Cancelar</button><button class="btn primary" id="modalSave">Guardar gestión</button></div></div></div></div>
@@ -412,6 +455,7 @@ const DEFAULT_CLAIMS=[
 ];
 const initialState={orders:[],claims:DEFAULT_CLAIMS,responsibles:[],defaultResponsible:'',holidays:[],pupDays:1,closedMonths:[],lastLoads:{oriflame:'',urbano:'',tc:''}};
 let state=loadState(); let selected=new Set(); let modalGuide=null; let socioGuide=null; let statusEditGuide=null; let sortState={key:'guideDate',dir:'desc'}; let pendingFirst=false; let onlyUngestioned=false; let staged={oriflame:null,urbano:null,tc:null};
+let importControl={oriflame:{issues:[],updated:0,created:0,rejected:0,duplicates:0,fileName:''}};
 const $=id=>document.getElementById(id); const $$=sel=>Array.from(document.querySelectorAll(sel));
 function loadState(){try{const x=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');return {...structuredClone(initialState),...(x||{}),lastLoads:{...initialState.lastLoads,...((x||{}).lastLoads||{})}}}catch(e){return structuredClone(initialState)}}
 function saveState(){
@@ -470,115 +514,30 @@ function get(o,...keys){
 }
 function headerScore(row,type=''){
   const keys=(row||[]).map(normKey);
-  const sets={
-    tc:['WAYBILL NUMBER','INVO NUMBER','SOCIO','NOMBRE SOCIO','TELEFONO SOCIO','SERVICE CENTRE','REFERENCIAS'],
-    urbano:['CODIGO REFERENCIA','GUIA','ESTADO ACTUAL','DETALLE ESTADO','FECHA ESTADO','NRO VISITAS','ARRIBO DESTINO'],
-    oriflame:['NO GUIA','FECHA GUIA','COD DISTR','NOMBRE DESTINATARIO','DIRECCION ENVIO','NUMERO DE ORDEN','CIUDAD','PESO','COURIER','CANAL']
-  };
-  const wanted=sets[type]||[];
-  let score=0;
-  wanted.forEach(w=>{
-    const nw=normKey(w);
-    if(keys.some(k=>k===nw||k.includes(nw)||nw.includes(k)))score++;
-  });
-  if(type==='oriflame'){
-    if(keys.some(k=>['NO GUIA','WAYBILL NUMBER','GUIA'].includes(k)))score+=5;
-    if(keys.some(k=>['FECHA GUIA','AWB DATE','WAYBILL DATE'].includes(k)))score+=5;
-    if(keys.some(k=>k.includes('COD DISTR')||k==='SERVICE CENTRE'))score+=3;
-  }
-  if(type==='urbano'){
-    if(keys.some(k=>k==='CODIGO REFERENCIA'))score+=5;
-    if(keys.some(k=>k==='ESTADO ACTUAL'))score+=4;
-  }
-  if(type==='tc'){
-    if(keys.some(k=>k==='WAYBILL NUMBER'))score+=5;
-    if(keys.some(k=>k==='SOCIO'))score+=4;
-  }
-  return score
-}
-function rowsFromAOA(aoa,type=''){
-  aoa=(aoa||[]).filter(r=>Array.isArray(r)&&r.some(v=>norm(cleanCell(v))!==''));
-  if(!aoa.length)return[];
+  const compact=v=>normKey(v)
+    .replace(/\b(DE|DEL|LA|EL|PARA)\b/g,' ')
+    .replace(/\s+/g,'')
+    .trim();
 
-  let best=0,bestScore=-1;
-  for(let i=0;i<Math.min(40,aoa.length);i++){
-    const s=headerScore(aoa[i],type);
-    if(s>bestScore){bestScore=s;best=i}
-  }
-  if(bestScore<=0)best=0;
-
-  const headers=(aoa[best]||[]).map((h,i)=>norm(cleanCell(h))||`COL_${i+1}`);
-  const rows=aoa.slice(best+1).filter(r=>r.some(v=>norm(cleanCell(v))!=='')).map(vals=>{
-    const obj={};
-    headers.forEach((h,i)=>{
-      let key=h;
-      if(Object.prototype.hasOwnProperty.call(obj,key))key=`${key}_${i+1}`;
-      obj[key]=cleanCell(vals[i]??'');
+  const has=(variants)=>variants.some(v=>{
+    const nv=normKey(v),cv=compact(v);
+    return keys.some(k=>{
+      const ck=compact(k);
+      return k===nv||k.includes(nv)||nv.includes(k)||ck===cv;
     });
-    return obj;
   });
 
-  rows.__headerRow=best+1;
-  rows.__headers=headers;
-  rows.__score=bestScore;
-  return rows
-}
-function parseDelimited(text,type=''){text=String(text||'').trim();if(!text)return[];const lines=text.split(/\r?\n/).filter(x=>x.trim()!=='');if(!lines.length)return[];const sample=lines.slice(0,8).join('\n');const delimiter=sample.includes('\t')?'\t':(sample.includes(';')?';':',');const parseLine=line=>{if(delimiter==='\t')return line.split('\t');let out=[],cur='',q=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===delimiter&&!q){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out};return rowsFromAOA(lines.map(parseLine),type)}
-async function readFileRows(file,preferredSheet,type=''){
-  if(!file)return[];
-
-  if(window.XLSX){
-    const buf=await file.arrayBuffer();
-    const wb=XLSX.read(buf,{type:'array',cellDates:false});
-    const prefs=(Array.isArray(preferredSheet)?preferredSheet:[preferredSheet]).filter(Boolean);
-
-    let bestName='',bestRows=null,bestScore=-Infinity;
-
-    for(const name of wb.SheetNames){
-      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:true});
-      const rows=rowsFromAOA(aoa,type);
-      let score=Number(rows.__score||0);
-
-      if(prefs.some(p=>normKey(p)===normKey(name)))score+=3;
-      if(type==='oriflame'&&['URBANO','BASE ORIFLAME','BASE','ORIFLAME'].includes(normKey(name)))score+=4;
-      if(type==='urbano'&&normKey(name).includes('URBANO DATA'))score+=4;
-      if(type==='tc'&&['TCII','TC III','TCIII','TC','TOTAL CONTROL'].includes(normKey(name)))score+=4;
-
-      score+=Math.min(rows.length,5000)/10000;
-
-      if(score>bestScore){
-        bestScore=score;bestName=name;bestRows=rows;
-      }
-    }
-
-    if(!bestRows)bestRows=[];
-    bestRows.__sheetName=bestName;
-    bestRows.__fileName=file.name;
-    bestRows.__score=bestScore;
-    return bestRows;
-  }
-
-  const raw=await file.text();
-  const rows=parseDelimited(raw,type);
-  rows.__fileName=file.name;
-  rows.__sheetName='CSV/TXT';
-  return rows;
-}
-
-function auditBaseRows(type,rows){
-  const total=rows?.length||0;
-  if(!total)return{total:0,valid:0,summary:'0 filas detectadas'};
-  const count=fn=>rows.reduce((a,r)=>a+(fn(r)?1:0),0);
+  let score=0;
 
   if(type==='oriflame'){
-    const guide=count(r=>!!normGuide(get(r,'NO GUIA','NO GUÍA','GUIA','GUÍA','WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','AWB')));
-    const date=count(r=>!!isoDate(get(r,'FECHA GUIA','FECHA GUÍA','FECHA_GUIA','AWB_DATE','AWB DATE','WAYBILL_DATE','WAYBILL DATE')));
-    const cod=count(r=>!!norm(get(r,'COD DISTR.','COD DISTR','COD DISTRIBUIDOR','SERVICE_CENTRE','SERVICE CENTRE')));
-    const name=count(r=>!!norm(get(r,'NOMBRE DESTINATARIO','NOMBRE_DESTINATARIO','DESTINATARIO','CONSIGNEE')));
-    const address=count(r=>!!norm(get(r,'DIRECCION ENVIO','DIRECCIÓN ENVIO','DIRECCION DE ENTREGA','ADDRESS')));
-    const order=count(r=>!!norm(get(r,'NUMERO DE ORDEN','NÚMERO DE ORDEN','INVO_NUMBER','INVO NUMBER','ORDER_NUMBER')));
+    const guide=count(r=>!!normGuide(get(r,'NO GUIA','NO GUÍA','N° GUIA','Nº GUIA','NRO GUIA','NUMERO GUIA','GUIA ORIFLAME','GUIA','GUÍA','WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','AWB')));
+    const date=count(r=>!!isoDate(get(r,'FECHA GUIA','FECHA GUÍA','FECHA DE GUIA','FECHA DE GUÍA','FECHA_GUIA','AWB_DATE','AWB DATE','WAYBILL_DATE','WAYBILL DATE','FECHA DESPACHO')));
+    const cod=count(r=>!!norm(get(r,'COD DISTR.','COD DISTR','COD. DISTR.','COD DISTRIBUIDOR','CODIGO DISTRIBUIDOR','CÓDIGO DISTRIBUIDOR','SERVICE_CENTRE','SERVICE CENTRE')));
+    const name=count(r=>!!norm(get(r,'NOMBRE DESTINATARIO','NOMBRE_DESTINATARIO','DESTINATARIO','CONSIGNEE','NOMBRE CLIENTE')));
+    const address=count(r=>!!norm(get(r,'DIRECCION ENVIO','DIRECCIÓN ENVIO','DIRECCION DE ENVIO','DIRECCIÓN DE ENVÍO','DIRECCION DE ENTREGA','ADDRESS')));
+    const order=count(r=>!!norm(get(r,'NUMERO DE ORDEN','NÚMERO DE ORDEN','INVO_NUMBER','INVO NUMBER','ORDER_NUMBER','ORDER NUMBER')));
     const city=count(r=>!!norm(get(r,'CIUDAD','CITY','PROVINCIA')));
-    const channel=count(r=>!!norm(get(r,'CANAL','CHANNEL'))||!!deriveChannel(get(r,'COD DISTR.','COD DISTR','COD DISTRIBUIDOR','SERVICE_CENTRE','SERVICE CENTRE')));
+    const channel=count(r=>!!norm(get(r,'CANAL','CHANNEL'))||!!deriveChannel(get(r,'COD DISTR.','COD DISTR','COD. DISTR.','COD DISTRIBUIDOR','SERVICE_CENTRE','SERVICE CENTRE')));
     return{total,valid:Math.min(guide,date),summary:`Guía ${guide}/${total} · Fecha ${date}/${total} · Cod.Distr. ${cod}/${total} · Destinatario ${name}/${total} · Dirección ${address}/${total} · Orden ${order}/${total} · Ciudad ${city}/${total} · Canal ${channel}/${total}`};
   }
 
@@ -685,6 +644,53 @@ function bindRowEvents(){
     openStatusEdit(el.dataset.guide);
   });
 }
+
+function updateOriflameIssueButton(){
+  const ctl=importControl.oriflame;
+  const btn=$('viewOriflameIssues');
+  if(!btn)return;
+  const n=ctl.issues.length;
+  btn.textContent=`Ver incidencias (${n})`;
+  btn.disabled=n===0;
+  btn.classList.toggle('has-issues',n>0);
+}
+function openOriflameIssues(){
+  const ctl=importControl.oriflame;
+  $('issueRejectedCount').textContent=ctl.rejected||0;
+  $('issueDuplicateCount').textContent=ctl.duplicates||0;
+  $('issueUpdatedCount').textContent=ctl.updated||0;
+  const body=$('importIssuesBody');
+  body.innerHTML=ctl.issues.length?ctl.issues.map(x=>`
+    <tr>
+      <td>${esc(x.row||'-')}</td>
+      <td>${esc(x.guide||'-')}</td>
+      <td>${esc(x.order||'-')}</td>
+      <td class="${x.kind==='DUPLICADO'?'issue-dup':'issue-bad'}">${esc(x.kind)}</td>
+      <td>${esc(x.reason)}</td>
+      <td>${esc(x.action)}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="issue-empty">No hay incidencias en la última carga.</td></tr>';
+  $('importIssuesModal').classList.add('show');
+}
+function closeOriflameIssues(){$('importIssuesModal').classList.remove('show')}
+function exportOriflameIssues(){
+  const ctl=importControl.oriflame;
+  if(!ctl.issues.length)return toast('No hay incidencias para exportar.','warn');
+  const rows=ctl.issues.map(x=>{
+    const base={'FILA':x.row||'','GUIA':x.guide||'','NUMERO DE ORDEN':x.order||'','TIPO':x.kind||'','MOTIVO':x.reason||'','ACCION':x.action||''};
+    for(const [k,v] of Object.entries(x.raw||{})){if(!Object.prototype.hasOwnProperty.call(base,k))base[k]=v}
+    return base;
+  });
+  if(window.XLSX){
+    const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'INCIDENCIAS');
+    XLSX.writeFile(wb,`URBANO_INCIDENCIAS_ORIFLAME_${isoDate(new Date())}.xlsx`);
+  }else{
+    const keys=Object.keys(rows[0]);
+    const csv=[keys.join(';'),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(';'))].join('\n');
+    downloadBlob(new Blob([csv],{type:'text/csv;charset=utf-8'}),`URBANO_INCIDENCIAS_ORIFLAME_${isoDate(new Date())}.csv`);
+  }
+}
+
 async function processOriflame(){
   const btn=$('processOriflame');
   const rows=sourceRows('oriflame');
@@ -696,20 +702,55 @@ async function processOriflame(){
   const oldLabel=btn.textContent;
   btn.disabled=true;btn.textContent='Procesando...';
 
+  const ctl=importControl.oriflame={
+    issues:[],updated:0,created:0,rejected:0,duplicates:0,
+    fileName:rows.__fileName||''
+  };
+  updateOriflameIssueButton();
+
   try{
     snapshotBeforeLoad();
-
-    let created=0,updated=0,skipped=0,noDate=0;
     const touched=new Set();
-    const by=new Map(state.orders.map(o=>[normGuide(o.guide),o]));
 
-    for(const r of rows){
+    // NO GUIA es la clave única del sistema.
+    // Si ya existe, se actualiza el pedido existente; no se crea otro.
+    const by=new Map();
+    state.orders.forEach(o=>{
+      const k=normGuide(o.guide);
+      if(k&&!by.has(k))by.set(k,o);
+    });
+
+    // Control de repetidos dentro del mismo archivo.
+    const seenIncoming=new Set();
+    const headerRow=Number(rows.__headerRow||1);
+
+    for(let i=0;i<rows.length;i++){
+      const r=rows[i];
+      const rowNumber=headerRow+i+1;
       const guide=normGuide(get(r,'NO GUIA','NO GUÍA','GUIA','GUÍA','WAYBILL_NUMBER','WAYBILL NUMBER','WAYBILL','NRO GUIA','NRO GUÍA','NUMERO GUIA','NÚMERO GUIA','AWB'));
-      if(!guide){skipped++;continue}
+      const orderValue=norm(get(r,'NUMERO DE ORDEN','NÚMERO DE ORDEN','INVO_NUMBER','INVO NUMBER','ORDER_NUMBER','ORDER NUMBER','ORDEN'));
+
+      if(!guide){
+        ctl.rejected++;
+        ctl.issues.push({row:rowNumber,guide:'',order:orderValue,kind:'NO CARGADO',reason:'Fila sin NO GUIA / guía identificable.',action:'Omitido. Corregir guía y volver a cargar.',raw:r});
+        continue;
+      }
+
+      if(seenIncoming.has(guide)){
+        ctl.duplicates++;
+        ctl.issues.push({row:rowNumber,guide,order:orderValue,kind:'DUPLICADO',reason:'La misma guía aparece más de una vez en el archivo.',action:'Omitido. Se conserva la primera aparición.',raw:r});
+        continue;
+      }
+      seenIncoming.add(guide);
 
       let o=by.get(guide);
       const incomingGuideDate=isoDate(get(r,'FECHA GUIA','FECHA GUÍA','FECHA_GUIA','AWB_DATE','AWB DATE','WAYBILL_DATE','WAYBILL DATE','FECHA DESPACHO','FECHA DE GUIA','FECHA DE GUÍA'));
-      if(!o&&!incomingGuideDate){noDate++;continue}
+
+      if(!o&&!incomingGuideDate){
+        ctl.rejected++;
+        ctl.issues.push({row:rowNumber,guide,order:orderValue,kind:'NO CARGADO',reason:'Pedido nuevo sin FECHA GUIA válida.',action:'Omitido. Corregir fecha y volver a cargar.',raw:r});
+        continue;
+      }
 
       const fresh={
         guide,
@@ -720,7 +761,7 @@ async function processOriflame(){
         barrio:norm(get(r,'BARRIO','SECTOR')),
         phone1:norm(get(r,'TELEFONO 1','TELÉFONO 1','TELEFONO1','CELULAR','TELEFONO')),
         phone2:norm(get(r,'TELEFONO 2','TELÉFONO 2','TELEFONO2')),
-        order:norm(get(r,'NUMERO DE ORDEN','NÚMERO DE ORDEN','INVO_NUMBER','INVO NUMBER','ORDER_NUMBER','ORDER NUMBER','ORDEN')),
+        order:orderValue,
         orderDate:isoDate(get(r,'ORDER DATE','ORDER_DATE','FECHA_PEDIDO','FECHA PEDIDO')),
         province:norm(get(r,'PROVINCIA','PROVINCE')),
         city:norm(get(r,'CIUDAD','CITY')),
@@ -730,7 +771,6 @@ async function processOriflame(){
         promiseDate:isoDate(get(r,'PROMESA DE ENTREGA','FECHA PROMESA','PROMISE DATE')),
         courier:norm(get(r,'COURIER','TRANSPORTISTA'))||'URBANO'
       };
-
       fresh.channel=norm(get(r,'CANAL','CHANNEL'))||deriveChannel(fresh.codDist);
 
       const legacy={
@@ -750,7 +790,7 @@ async function processOriflame(){
 
       if(!o){
         o={...fresh,status:legacy.status||'',statusDetail:legacy.statusDetail||'',statusDate:'',visits:0,wyb:legacy.wyb||'',arrivedPup:legacy.arrivedPup||'',deliveryDate:legacy.deliveryDate||'',requirement:'',requirementDate:'',claim:legacy.claim||'',management:legacy.management||'',responsible:legacy.responsible||'',socio:legacy.socio||'',memberName:legacy.memberName||'',reference:legacy.reference||'',phone:legacy.phone||''};
-        state.orders.push(o);by.set(guide,o);created++;
+        state.orders.push(o);by.set(guide,o);ctl.created++;
       }else{
         for(const [k,v] of Object.entries(fresh))if(norm(v)!=='')o[k]=v;
         for(const [k,v] of Object.entries(legacy)){
@@ -758,7 +798,7 @@ async function processOriflame(){
           if(['management','claim','responsible'].includes(k)){if(!norm(o[k]))o[k]=v}
           else o[k]=v;
         }
-        updated++;
+        ctl.updated++;
       }
 
       const m=monthKey(o.guideDate);
@@ -766,23 +806,26 @@ async function processOriflame(){
     }
 
     state.lastLoads.oriflame=new Date().toISOString();
-    saveState();refreshAll();
+    saveState();refreshAll();updateOriflameIssueButton();
 
-    if(!created&&!updated){
-      toast(`Sin pedidos válidos · ${noDate} sin fecha · ${skipped} sin guía.`,'bad');
+    if(!ctl.created&&!ctl.updated){
+      toast(`Sin pedidos válidos · ${ctl.rejected} no cargados · ${ctl.duplicates} duplicados.`,'bad');
+      if(ctl.issues.length)openOriflameIssues();
       return;
     }
-    if(!touched.size)throw new Error('No se detectó un mes válido.');
 
+    if(!touched.size)throw new Error('No se detectó un mes válido.');
     if(!window.UrbanoFirebase)throw new Error('Firebase no está inicializado.');
+
     await window.UrbanoFirebase.ensureAuthReady();
     await window.UrbanoFirebase.syncMonths([...touched]);
 
-    const msg=`Base Oriflame: ${created} nuevos · ${updated} actualizados · Firebase actualizado.`;
+    const msg=`Base Oriflame: ${ctl.created} nuevos · ${ctl.updated} actualizados · ${ctl.rejected} no cargados · ${ctl.duplicates} duplicados omitidos · Firebase actualizado.`;
     $('lastOriflame').innerHTML=`<strong>Última carga:</strong> ${new Date().toLocaleString('es-EC')}<br>${esc(msg)}<br><span>${esc(audit.summary)}</span>`;
-    toast(msg);
+    toast(msg,ctl.issues.length?'warn':'ok');
   }catch(error){
     console.error('Base Oriflame:',error);
+    updateOriflameIssueButton();
     toast(`La base se procesó, pero Firebase falló: ${String(error?.code||error?.message||'error')}`,'bad');
   }finally{
     btn.disabled=false;btn.textContent=oldLabel;
@@ -1094,7 +1137,7 @@ async function stageFile(type,file,preferred,labelEl){
       toast(`${file.name}: no detecté Guía + Fecha guía.`,'bad');
       return;
     }
-    toast(`${file.name}: ${audit.total} filas detectadas · ${rows.__sheetName||'hoja detectada'}.`);
+    toast(`${file.name}: ${audit.total} filas detectadas · ${rows.__sheetName||'hoja detectada'}${rows.__inferred?' · estructura reconocida por posición':''}.`);
   }catch(e){
     console.error(e);
     staged[type]=null;
@@ -1119,6 +1162,11 @@ $('fMonth').onchange=()=>{const m=$('fMonth').value;if(window.UrbanoFirebase){wi
 // Files & process
 $('fileOriflame').onchange=e=>stageFile('oriflame',e.target.files[0],'URBANO','lastOriflame');$('fileUrbano').onchange=e=>stageFile('urbano',e.target.files[0],'URBANO DATA','lastUrbano');$('fileTC').onchange=e=>stageFile('tc',e.target.files[0],['TCII','TC II','TCIII','TC III','TC','TOTAL CONTROL'],'lastTC');$('processOriflame').onclick=processOriflame;$('processUrbano').onclick=processUrbano;$('processTC').onclick=processTC;$('undoLastLoad').onclick=undoLastLoad;
 // Modal
+$('viewOriflameIssues').onclick=openOriflameIssues;
+$('importIssuesClose').onclick=closeOriflameIssues;
+$('importIssuesOk').onclick=closeOriflameIssues;
+$('exportOriflameIssues').onclick=exportOriflameIssues;
+$('importIssuesModal').onclick=e=>{if(e.target===$('importIssuesModal'))closeOriflameIssues()};
 $('statusEditClose').onclick=closeStatusEdit;
 $('statusEditCancel').onclick=closeStatusEdit;
 $('statusEditSave').onclick=saveStatusEdit;
